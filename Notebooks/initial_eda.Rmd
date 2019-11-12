@@ -1,0 +1,322 @@
+---
+title: "ASNAP Political Data"
+output: html_notebook
+---
+
+
+## Setup    
+  Load the relevant libraries.
+```{r message=TRUE, warning=TRUE}
+
+# rm(list = ls())
+# .rs.restartR()
+
+
+# data munging
+library("tidyverse")
+library("data.table")
+# library("tidyquant")    # rolling calculations
+
+# munge dates
+library("lubridate")
+
+
+# viz
+library("plotly")
+
+
+
+
+library("tictoc")
+
+# get tweets
+# library("rtweet")
+
+# NLP
+# library("tidytext")
+# library("syuzhet")
+# library("googleLanguageR")
+
+# graph analyses
+# library("tidygraph")
+# library("ggraph")
+
+# # feature engineering and data prep
+# library("recipes")
+# library("caret")
+# library("DMwR")
+# 
+# # to explore missing data
+# library("visdat")
+# library("naniar")
+# 
+# # modeling
+# library("h2o")
+
+```
+  
+    
+  Session Info.
+```{r}
+
+sessionInfo()
+
+```
+
+
+  Setup the root directory.
+```{r "setup", include = FALSE}
+
+require("knitr")
+
+
+# Use when running from AWS
+# opts_knit$set(root.dir = "/home/rstudio/Dropbox/_AWS/twitter_dc_metro2/")
+
+
+# Use when running from laptop
+opts_knit$set(root.dir = "/Users/mdturse/Desktop/Analytics/snap_political_ads")
+
+```
+  
+    
+  Setting `wd` as the working directory.
+```{r}
+
+wd <- getwd()
+
+wd
+
+```
+
+
+## Get the Data  
+  
+  Read in the .csv files.
+```{r}
+
+data_2018 <-
+  read_csv(file = paste0(wd,
+                         "/Data/Raw/",
+                         "/PoliticalAds2018.csv"
+                         )
+           ) %>% 
+  rename_all(funs(str_replace_all(., "\\W", "_")))
+
+data_2019 <-
+  read_csv(file = paste0(wd,
+                         "/Data/Raw/",
+                         "/PoliticalAds2019.csv"
+                         )
+           ) %>% 
+  rename_all(funs(str_replace_all(., "\\W", "_")))
+
+
+message("data_2018")
+glimpse(data_2018)
+
+message("data_2019")
+glimpse(data_2019)
+
+```
+  
+  Compare if the column names are the same
+```{r}
+
+ncol(data_2018)
+ncol(data_2019)
+
+setdiff(colnames(data_2018),
+        colnames(data_2019)
+        )
+
+```
+  
+    
+  Bind the rows to create a single dataset.
+```{r}
+
+data_20182019 <-
+  bind_rows(data_2018 %>% mutate(data_yr = 2018),
+            data_2019 %>% mutate(data_yr = 2019)
+            ) %>% 
+  mutate(StartDate = as_datetime(StartDate),
+         EndDate = as_datetime(EndDate))
+  
+
+glimpse(data_20182019)
+# View(data_20182019 %>% head(1000))
+
+
+ids <-
+  data_2018 %>% 
+  head(10) %>% 
+  pull(ADID)
+
+# View(data_2018 %>% 
+#        filter(ADID %in% ids) %>% 
+#        select(ADID,
+#               StartDate,
+#               EndDate
+#               ) %>% 
+#        arrange(ADID)
+#      )
+# 
+# View(data_20182019 %>% 
+#        filter(ADID %in% ids) %>% 
+#        select(ADID,
+#               StartDate,
+#               EndDate
+#               ) %>% 
+#        arrange(ADID)
+#      )
+
+rm(data_2018, data_2019)
+
+```
+  
+    
+  Make the data "tidy" - i.e., one row per `Interests` and one row per `Targeting_Geo___Postal_Code` (instead of having list-columns as in the original data).
+```{r}
+
+data_20182019_long <-
+  data_20182019 %>% 
+  mutate(interests_long = str_split(Interests,
+                                    ",",
+                                    ),
+         Targeting_Geo___Postal_Code_long = str_split(Targeting_Geo___Postal_Code,
+                                                      ",",
+                                                      )
+         ) %>% 
+  unnest(interests_long) %>% 
+  unnest(Targeting_Geo___Postal_Code_long) %>% 
+  arrange(ADID)
+
+
+dim(data_20182019)
+dim(data_20182019_long)
+
+
+glimpse(data_20182019_long)
+# View(data_20182019_long %>% head(1000))
+
+
+
+# View(data_20182019 %>%
+#        filter(ADID %in% ids) %>%
+#        select(ADID,
+#               Interests,
+#               Targeting_Geo___Postal_Code
+#               ) %>%
+#        arrange(ADID)
+#      )
+# 
+View(data_20182019_long %>%
+       filter(ADID %in% ids) %>%
+       select(ADID,
+              Interests,
+              interests_long,
+              Targeting_Geo___Postal_Code,
+              Targeting_Geo___Postal_Code_long
+              ) %>%
+       arrange(ADID)
+     )
+
+
+rm(data_20182019, ids)
+
+```
+
+
+## Variable Exploration
+```{r}
+
+summary(data_20182019_long)
+
+```
+
+
+## Minor Feature Engineering  
+  
+  Creating new features.
+```{r}
+
+add_features <-
+  data_20182019_long %>% 
+  mutate(cost_per_impression = Spend / Impressions,
+         impressions_per_dollar = Impressions / Spend,
+         ad_delivery_interval = interval(start = StartDate,
+                                         end = EndDate
+                                         ),
+         ad_delivery_duration_sec = ad_delivery_interval %>% int_length(),
+         ad_delivery_duration_day = ad_delivery_interval / ddays(x = 1),
+         start_date = as_date(StartDate),
+         start_date_yrmth = floor_date(StartDate, unit = "month"),
+         end_date = as_date(EndDate),
+         end_date_yrmth = floor_date(EndDate, unit = "month")
+         )
+
+glimpse(add_features)
+
+
+View(add_features %>% head(1000))
+
+# View(add_features %>% 
+#        select(StartDate,
+#               EndDate,
+#               ad_delivery_duration_sec,
+#               ad_delivery_duration_day,
+#               start_date,
+#               start_date_yrmth,
+#               end_date
+#               ) %>%
+#        head(100)
+#      )
+
+
+# rm(data_20182019_long)
+
+```
+
+
+
+```{r}
+
+View(add_features %>% 
+  count(interests_long,
+        sort = TRUE
+        )
+  )
+
+View(add_features %>% 
+  mutate(interests_long_lump = fct_lump(f = interests_long,
+                                        prop = 0.01,
+                                        other_level = "_Other"
+                                        )
+         ) %>% 
+  count(interests_long_lump,
+        sort = TRUE
+        )
+  )
+
+
+
+
+test <-
+  add_features %>% 
+  mutate_if(is.character,
+            fct_lump,
+            prop = 0.01,
+            other_level = "_Other"
+            ) # %>% 
+  # mutate_if(is.character,
+  #           factor
+  #           )
+
+glimpse(test)
+
+summary(test)
+
+```
+
+
