@@ -17,6 +17,10 @@ library("tidyverse")
 library("data.table")
 # library("tidyquant")    # rolling calculations
 
+
+# creating functions
+library("rlang")
+
 # munge dates
 library("lubridate")
 
@@ -184,11 +188,19 @@ data_20182019_long <-
   mutate(interests_long = str_split(Interests,
                                     ",",
                                     ),
+         language_long = str_split(Language,
+                                   ",",
+                                   ),
+         advanced_demographics_long = str_split(AdvancedDemographics,
+                                                ",",
+                                                ),
          Targeting_Geo___Postal_Code_long = str_split(Targeting_Geo___Postal_Code,
                                                       ",",
                                                       )
          ) %>% 
   unnest(interests_long) %>% 
+  unnest(language_long) %>% 
+  unnest(advanced_demographics_long) %>% 
   unnest(Targeting_Geo___Postal_Code_long) %>% 
   arrange(ADID)
 
@@ -231,6 +243,7 @@ rm(data_20182019, ids)
 ## Variable Exploration
 ```{r}
 
+dim(data_20182019_long)
 summary(data_20182019_long)
 
 ```
@@ -253,7 +266,9 @@ add_features <-
          start_date = as_date(StartDate),
          start_date_yrmth = floor_date(StartDate, unit = "month"),
          end_date = as_date(EndDate),
-         end_date_yrmth = floor_date(EndDate, unit = "month")
+         end_date_yrmth = floor_date(EndDate, unit = "month"),
+         impressions_per_day = Impressions / ad_delivery_duration_day,
+         impressions_per_day_per_dollar = impressions_per_day / Spend
          )
 
 glimpse(add_features)
@@ -279,7 +294,6 @@ View(add_features %>% head(1000))
 ```
 
 
-
 ```{r}
 
 View(add_features %>% 
@@ -291,6 +305,7 @@ View(add_features %>%
 View(add_features %>% 
   mutate(interests_long_lump = fct_lump(f = interests_long,
                                         prop = 0.01,
+                                        # n = 20,
                                         other_level = "_Other"
                                         )
          ) %>% 
@@ -299,23 +314,167 @@ View(add_features %>%
         )
   )
 
+```
 
+
+```{r}
+
+smry <-
+  add_features %>% 
+  select_if(is.character) %>% 
+  mutate_all(factor) %>% 
+  summary()
+
+str(smry)
+smry
+# View(smry %>% as.data.frame())
+
+
+
+chr_cols <-
+  add_features %>% 
+  select_if(is.character) %>% 
+  colnames()
+
+names(chr_cols) <- chr_cols
+# str(chr_cols)
 
 
 test <-
+  pmap(.l = list(a = chr_cols
+                 ),
+       .f = function(a) { #, b) {
+         quo_a = enquo(a)
+         
+         data_count = add_features %>% 
+           count(!!!rlang::parse_exprs(a),
+                 sort = TRUE,
+                 name = "cnt_n"
+                 ) %>% 
+           mutate(is_na = if_else(is.na(!!!rlang::parse_exprs(a)
+                                        ),
+                                  0,
+                                  1
+                                  )
+                  ) %>% 
+           arrange(desc(is_na),
+                   desc(cnt_n)
+                   ) %>% 
+           mutate(cnt_n_cumsum = cumsum(cnt_n),
+                  cnt_pct = cnt_n / sum(cnt_n),
+                  cnt_pct_cumsum = cumsum(cnt_pct),
+                  row_num = row_number(),
+                  row_num_pct = row_num / max(row_num)
+                  )
+         
+         return(data_count)
+         }
+       )
+
+test
+# test$interests_long
+
+```
+
+
+
+
+```{r}
+
+add_features %>% 
+  count(interests_long) %>% 
+  mutate(n_pct = (n / sum(n)) # * 100
+         ) %>% 
+  arrange(desc(n))
+
+
+add_features %>% 
+  select_if(is.character) %>% 
+  # mutate_all(factor) %>% 
+  map(~count(.x)
+      )
+
+
+
+func_my_count <-
+  function(data, var) {
+    quo_var = enquo(var)
+    
+    res = data %>% 
+      count(!!quo_var,
+            sort = TRUE,
+            name = "cnt"
+            )
+    
+    return(res)
+    }
+
+
+add_features %>% 
+  func_my_count(var = interests_long)
+
+
+
+
+
+add_features %>% 
+  select_if(is.character) %>% 
+  map(~count(.x)
+      )
+
+```
+
+
+```{r}
+
+cnt_ADID <-
   add_features %>% 
-  mutate_if(is.character,
-            fct_lump,
-            prop = 0.01,
-            other_level = "_Other"
-            ) # %>% 
-  # mutate_if(is.character,
-  #           factor
-  #           )
+  count(ADID,
+        sort = TRUE,
+        name = "cnt_n"
+        ) %>% 
+  mutate(cnt_n_cumsum = cumsum(cnt_n),
+         cnt_pct = cnt_n / sum(cnt_n),
+         cnt_pct_cumsum = cumsum(cnt_pct),
+         row_num = row_number(),
+         row_num_pct = row_num / max(row_num)
+         )
 
-glimpse(test)
+View(cnt_ADID)
 
-summary(test)
+
+cnt_ADID2 <-
+  pmap(.l = list(a = chr_cols),
+       .f = function(a) {
+         enquo_a = enquo(a)
+         
+         dat = add_features %>% 
+           count(!!enquo_a,
+                 sort = TRUE,
+                 name = "cnt_n"
+                 )
+         
+         return(dat)
+         }
+       )
+
+cnt_ADID2$ADID
+
+
+
+  add_features %>% 
+  count(ADID,
+        sort = TRUE,
+        name = "cnt_n"
+        ) %>% 
+  mutate(cnt_n_cumsum = cumsum(cnt_n),
+         cnt_pct = cnt_n / sum(cnt_n),
+         cnt_pct_cumsum = cumsum(cnt_pct),
+         row_num = row_number(),
+         row_num_pct = row_num / max(row_num)
+         )
+
+View(cnt_ADID)
 
 ```
 
