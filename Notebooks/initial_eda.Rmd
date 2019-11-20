@@ -340,7 +340,7 @@ names(chr_cols) <- chr_cols
 # str(chr_cols)
 
 
-test <-
+cnt_within_chr_cols <-
   pmap(.l = list(a = chr_cols
                  ),
        .f = function(a) { #, b) {
@@ -371,111 +371,11 @@ test <-
          }
        )
 
-test
-# test$interests_long
+cnt_within_chr_cols
+# cnt_within_chr_cols$interests_long
 
 ```
 
 
-
-
-```{r}
-
-add_features %>% 
-  count(interests_long) %>% 
-  mutate(n_pct = (n / sum(n)) # * 100
-         ) %>% 
-  arrange(desc(n))
-
-
-add_features %>% 
-  select_if(is.character) %>% 
-  # mutate_all(factor) %>% 
-  map(~count(.x)
-      )
-
-
-
-func_my_count <-
-  function(data, var) {
-    quo_var = enquo(var)
-    
-    res = data %>% 
-      count(!!quo_var,
-            sort = TRUE,
-            name = "cnt"
-            )
-    
-    return(res)
-    }
-
-
-add_features %>% 
-  func_my_count(var = interests_long)
-
-
-
-
-
-add_features %>% 
-  select_if(is.character) %>% 
-  map(~count(.x)
-      )
-
-```
-
-
-```{r}
-
-cnt_ADID <-
-  add_features %>% 
-  count(ADID,
-        sort = TRUE,
-        name = "cnt_n"
-        ) %>% 
-  mutate(cnt_n_cumsum = cumsum(cnt_n),
-         cnt_pct = cnt_n / sum(cnt_n),
-         cnt_pct_cumsum = cumsum(cnt_pct),
-         row_num = row_number(),
-         row_num_pct = row_num / max(row_num)
-         )
-
-View(cnt_ADID)
-
-
-cnt_ADID2 <-
-  pmap(.l = list(a = chr_cols),
-       .f = function(a) {
-         enquo_a = enquo(a)
-         
-         dat = add_features %>% 
-           count(!!enquo_a,
-                 sort = TRUE,
-                 name = "cnt_n"
-                 )
-         
-         return(dat)
-         }
-       )
-
-cnt_ADID2$ADID
-
-
-
-  add_features %>% 
-  count(ADID,
-        sort = TRUE,
-        name = "cnt_n"
-        ) %>% 
-  mutate(cnt_n_cumsum = cumsum(cnt_n),
-         cnt_pct = cnt_n / sum(cnt_n),
-         cnt_pct_cumsum = cumsum(cnt_pct),
-         row_num = row_number(),
-         row_num_pct = row_num / max(row_num)
-         )
-
-View(cnt_ADID)
-
-```
 
 
