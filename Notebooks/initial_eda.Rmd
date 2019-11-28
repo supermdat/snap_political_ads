@@ -8,7 +8,7 @@ output: html_notebook
   Load the relevant libraries.
 ```{r message=TRUE, warning=TRUE}
 
-# rm(list = ls())
+rm(list = ls())
 # .rs.restartR()
 
 
@@ -26,6 +26,7 @@ library("lubridate")
 
 
 # viz
+library("scales")
 library("plotly")
 
 
@@ -289,9 +290,163 @@ View(add_features %>% head(1000))
 #      )
 
 
-# rm(data_20182019_long)
+rm(data_20182019_long)
 
 ```
+  
+    
+  Inspect individual variables.
+```{r}
+
+vars_num_wide <-
+  add_features %>% 
+  select_if(is.numeric) %>% 
+  select(-data_yr,
+         -ad_delivery_interval
+         )
+
+# glimpse(vars_num_wide)
+dim(vars_num_wide)
+
+
+vars_num_long <-
+  vars_num_wide %>% 
+  pivot_longer(cols = everything(),
+               names_to = "variable",
+               values_to = "value"
+               ) %>% 
+  # group_by(variable) %>% 
+  # nest() 
+  split(.$variable)
+
+glimpse(vars_num_long$ad_delivery_duration_day)
+
+
+rm(vars_num_wide)
+
+```
+
+
+```{r}
+
+# vars_num_hist <-
+#   vars_num_long %>% 
+#   mutate(hist = map(data,
+#                     ~ggplot(data = .x,
+#                             aes(x = value)
+#                             ) +
+#                       geom_histogram() +
+#                       theme_minimal() +
+#                       NULL
+#                     ),
+#          freq = map(data,
+#                     ~ggplot(data = .x,
+#                             aes(x = value)
+#                             ) +
+#                       geom_freqpoly() +
+#                       theme_minimal() +
+#                       # labs(title = paste0("Histogram of ",
+#                       #                     variable
+#                       #                     )
+#                       #      ) +
+#                       NULL
+#                     )
+#          )
+# 
+# glimpse(vars_num_hist)
+# vars_num_hist$hist
+# vars_num_hist$freq
+
+```
+
+
+
+```{r}
+
+vars_num_hist_freq <-
+  pmap(.l = list(a = vars_num_long,
+                 b = names(vars_num_long)
+                 ),
+       .f = function(a, b) {
+         plot_basic =
+           a %>% 
+           # ggplot(aes(#x = log1p(value)
+           #            x = value
+           #            ),
+           #        ) +
+           ggplot() +
+           theme_minimal() +
+           # scale_x_continuous(labels = comma,
+           #                    trans = scales::log1p_trans()
+           #                    ) +
+           # labs(x = paste0("Log of ", b)
+           #      ) +
+           NULL
+         
+         hist =
+           plot_basic +
+           geom_histogram(aes(x = value),
+                          na.rm = TRUE,
+                          bins = 50
+                          ) +
+           scale_x_continuous(labels = comma,
+                              trans = scales::log1p_trans()
+                              ) +
+           labs(title = paste0("Histogram of ",
+                               b
+                               ),
+                subtitle = "logged values",
+                x = b
+                )
+         
+         freq =
+           plot_basic +
+           geom_freqpoly(aes(x = value),
+                         na.rm = TRUE,
+                         bins = 50
+                         ) +
+           scale_x_continuous(labels = comma,
+                              trans = scales::log1p_trans()
+                              ) +
+           labs(title = paste0("Freqpoly of ",
+                               b
+                               ),
+                subtitle = "logged values",
+                x = b
+                )
+         
+         box =
+           plot_basic +
+           geom_boxplot(aes(y = value),
+                        na.rm = TRUE,
+                        outlier.color = "red"
+                        ) +
+           scale_y_continuous(labels = comma,
+                              trans = scales::log1p_trans()
+                              ) +
+           labs(title = paste0("Boxplot of ",
+                               b
+                               ),
+                subtitle = "logged values",
+                x = b
+                )
+         
+         return(list(hist = hist,
+                     freq = freq,
+                     box = box
+                     )
+                )
+         }
+       )
+
+vars_num_hist_freq
+
+
+rm(vars_num_hist_freq)
+
+```
+
+
 
 
 ```{r}
