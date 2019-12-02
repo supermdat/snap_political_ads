@@ -307,6 +307,8 @@ vars_num_wide <-
 
 # glimpse(vars_num_wide)
 dim(vars_num_wide)
+summary(vars_num_wide)
+
 
 
 vars_num_long <-
@@ -431,9 +433,14 @@ vars_num_hist_freq <-
                 x = b
                 )
          
-         return(list(hist = hist,
-                     freq = freq,
-                     box = box
+         # return(list(hist = hist,
+         #             freq = freq,
+         #             box = box
+         #             )
+         #        )
+         return(list(hist = ggplotly(hist),
+                     freq = ggplotly(freq),
+                     box = ggplotly(box)
                      )
                 )
          }
