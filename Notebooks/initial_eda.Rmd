@@ -18,8 +18,9 @@ library("data.table")
 # library("tidyquant")    # rolling calculations
 
 
-# creating functions
-library("rlang")
+# other
+library("skimr")          # data investigation
+library("rlang")          # creating functions
 
 # munge dates
 library("lubridate")
@@ -146,11 +147,30 @@ data_20182019 <-
             data_2019 %>% mutate(data_yr = 2019)
             ) %>% 
   mutate(StartDate = as_datetime(StartDate),
-         EndDate = as_datetime(EndDate))
+         EndDate = as_datetime(EndDate),
+         ad_delivery_interval = interval(start = StartDate,
+                                         end = EndDate
+                                         ),
+         ad_delivery_duration_sec = ad_delivery_interval %>% int_length(),
+         ad_delivery_duration_day = ad_delivery_interval / ddays(x = 1)
+         ) %>% 
+  select(-ad_delivery_interval,
+         -ad_delivery_duration_sec
+         )
   
 
 glimpse(data_20182019)
-# View(data_20182019 %>% head(1000))
+data_20182019 %>% 
+  mutate_if(is.character, factor) %>% 
+  mutate_if(is.factor, factor) %>% 
+  skim()
+
+
+View(data_20182019 %>% filter(Spend <= 0))
+View(data_20182019 %>% filter(ad_delivery_duration_day <= 0))
+View(data_20182019 %>% filter(is.na(EndDate)))
+
+
 
 
 ids <-
@@ -245,74 +265,60 @@ rm(data_20182019, ids)
 ```{r}
 
 dim(data_20182019_long)
-summary(data_20182019_long)
+data_20182019_long %>% 
+  mutate_if(is.character, factor) %>% 
+  mutate_if(is.factor, factor) %>% 
+  skim()
 
 ```
 
-
-## Minor Feature Engineering  
-  
-  Creating new features.
-```{r}
-
-add_features <-
-  data_20182019_long %>% 
-  mutate(cost_per_impression = Spend / Impressions,
-         impressions_per_dollar = Impressions / Spend,
-         ad_delivery_interval = interval(start = StartDate,
-                                         end = EndDate
-                                         ),
-         ad_delivery_duration_sec = ad_delivery_interval %>% int_length(),
-         ad_delivery_duration_day = ad_delivery_interval / ddays(x = 1),
-         start_date = as_date(StartDate),
-         start_date_yrmth = floor_date(StartDate, unit = "month"),
-         end_date = as_date(EndDate),
-         end_date_yrmth = floor_date(EndDate, unit = "month"),
-         impressions_per_day = Impressions / ad_delivery_duration_day,
-         impressions_per_day_per_dollar = impressions_per_day / Spend
-         )
-
-glimpse(add_features)
-
-
-View(add_features %>% head(1000))
-
-# View(add_features %>% 
-#        select(StartDate,
-#               EndDate,
-#               ad_delivery_duration_sec,
-#               ad_delivery_duration_day,
-#               start_date,
-#               start_date_yrmth,
-#               end_date
-#               ) %>%
-#        head(100)
-#      )
-
-
-rm(data_20182019_long)
-
-```
-  
     
   Inspect individual variables.
 ```{r}
 
 vars_num_wide <-
-  add_features %>% 
-  select_if(is.numeric) %>% 
-  select(-data_yr,
-         -ad_delivery_interval
-         )
+  data_20182019_long %>% 
+  mutate(ad_delivery_interval = interval(start = StartDate,
+                                         end = EndDate
+                                         ),
+         ad_delivery_duration_sec = ad_delivery_interval %>% int_length(),
+         ad_delivery_duration_day = ad_delivery_interval / ddays(x = 1)
+         ) %>% 
+  select(-ad_delivery_interval,
+         -ad_delivery_duration_sec
+         ) %>% 
+  mutate_if(is.character, factor) %>% 
+  mutate_if(is.factor, factor)
 
-# glimpse(vars_num_wide)
+glimpse(vars_num_wide)
 dim(vars_num_wide)
-summary(vars_num_wide)
+vars_num_wide %>% skim()
+
+nrow_clean <-
+  vars_num_wide %>% 
+  filter(Spend > 0 &
+           ad_delivery_duration_day > 0
+         ) %>% 
+  nrow()
+
+nrow_all <-
+  vars_num_wide %>% nrow()
+
+nrow_clean
+nrow_all
+nrow_clean / nrow_all
+
+
+rm(list = ls(pattern = "nrow_"))
+
+View(vars_num_wide %>% filter(ad_delivery_duration_day <= 0))
+View(vars_num_wide %>% filter(is.na(EndDate)))
 
 
 
 vars_num_long <-
   vars_num_wide %>% 
+  select_if(is.numeric) %>% 
   pivot_longer(cols = everything(),
                names_to = "variable",
                values_to = "value"
@@ -322,9 +328,10 @@ vars_num_long <-
   split(.$variable)
 
 glimpse(vars_num_long$ad_delivery_duration_day)
+vars_num_long %>% map(~skim(.x))
 
 
-rm(vars_num_wide)
+# rm(vars_num_wide)
 
 ```
 
@@ -391,8 +398,8 @@ vars_num_hist_freq <-
                           na.rm = TRUE,
                           bins = 50
                           ) +
-           scale_x_continuous(labels = comma,
-                              trans = scales::log1p_trans()
+           scale_x_continuous(labels = comma#,
+                              # trans = scales::log1p_trans()
                               ) +
            labs(title = paste0("Histogram of ",
                                b
@@ -407,8 +414,8 @@ vars_num_hist_freq <-
                          na.rm = TRUE,
                          bins = 50
                          ) +
-           scale_x_continuous(labels = comma,
-                              trans = scales::log1p_trans()
+           scale_x_continuous(labels = comma#,
+                              # trans = scales::log1p_trans()
                               ) +
            labs(title = paste0("Freqpoly of ",
                                b
@@ -423,8 +430,8 @@ vars_num_hist_freq <-
                         na.rm = TRUE,
                         outlier.color = "red"
                         ) +
-           scale_y_continuous(labels = comma,
-                              trans = scales::log1p_trans()
+           scale_y_continuous(labels = comma#,
+                              # trans = scales::log1p_trans()
                               ) +
            labs(title = paste0("Boxplot of ",
                                b
@@ -455,6 +462,50 @@ rm(vars_num_hist_freq)
 
 
 
+## Minor Feature Engineering  
+  
+  Creating new features.
+```{r}
+
+add_features <-
+  vars_num_wide %>% 
+  mutate(cost_per_impression = Spend / Impressions,
+         impressions_per_dollar = Impressions / Spend,
+         # ad_delivery_interval = interval(start = StartDate,
+         #                                 end = EndDate
+         #                                 ),
+         # ad_delivery_duration_sec = ad_delivery_interval %>% int_length(),
+         # ad_delivery_duration_day = ad_delivery_interval / ddays(x = 1),
+         start_date = as_date(StartDate),
+         start_date_yrmth = floor_date(StartDate, unit = "month"),
+         end_date = as_date(EndDate),
+         end_date_yrmth = floor_date(EndDate, unit = "month"),
+         impressions_per_day = Impressions / ad_delivery_duration_day,
+         impressions_per_day_per_dollar = impressions_per_day / Spend
+         )
+
+glimpse(add_features)
+
+
+View(add_features %>% head(1000))
+
+# View(add_features %>% 
+#        select(StartDate,
+#               EndDate,
+#               ad_delivery_duration_sec,
+#               ad_delivery_duration_day,
+#               start_date,
+#               start_date_yrmth,
+#               end_date
+#               ) %>%
+#        head(100)
+#      )
+
+
+rm(data_20182019_long)
+
+```
+  
 
 ```{r}
 
@@ -485,7 +536,7 @@ smry <-
   add_features %>% 
   select_if(is.character) %>% 
   mutate_all(factor) %>% 
-  summary()
+  skim()
 
 str(smry)
 smry
