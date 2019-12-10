@@ -77,7 +77,7 @@ require("knitr")
 
 
 # Use when running from AWS
-# opts_knit$set(root.dir = "/home/rstudio/Dropbox/_AWS/twitter_dc_metro2/")
+# opts_knit$set(root.dir = "/home/rstudio/Dropbox/_AWS/snap_political_ads")
 
 
 # Use when running from laptop
@@ -234,9 +234,9 @@ data_20182019 %>%
   skim()
 
 
-# View(data_20182019 %>% filter(spend <= 0))
-# View(data_20182019 %>% filter(ad_delivery_duration_day <= 0))
-# View(data_20182019 %>% filter(is.na(enddate)))
+View(data_20182019 %>% filter(spend <= 0))
+View(data_20182019 %>% filter(ad_delivery_duration_day <= 0))
+View(data_20182019 %>% filter(is.na(enddate)))
 
 
 
@@ -340,33 +340,33 @@ data_20182019_long <-
   # 
   # tic("postal_codes__excluded__long")
   unnest(postal_codes__excluded__long) %>%
-  # 
-  # tic("interests_long")
-  unnest(interests_long) %>%
-  # 
-  # tic("language_long")
-  unnest(language_long) %>%
-  # 
-  # tic("advanced_demographics_long")
-  unnest(advanced_demographics_long) %>%
-  #
-  # tic("regions__included__long")
-  unnest(regions__included__long) %>%
-  #
-  # tic("regions__excluded__long")
-  unnest(regions__excluded__long) %>%
-  #
-  # tic("electoral_districts__included__long")
-  unnest(electoral_districts__included__long) %>%
-  #
-  # tic("electoral_districts__excluded__long")
-  unnest(electoral_districts__excluded__long) %>%
-  #
-  # tic("metros__included__long")
-  unnest(metros__included__long) %>%
-  #
-  # tic("metros__excluded__long")
-  unnest(metros__excluded__long) %>%
+  # # 
+  # # tic("interests_long")
+  # unnest(interests_long) %>%
+  # # 
+  # # tic("language_long")
+  # unnest(language_long) %>%
+  # # 
+  # # tic("advanced_demographics_long")
+  # unnest(advanced_demographics_long) %>%
+  # #
+  # # tic("regions__included__long")
+  # unnest(regions__included__long) %>%
+  # #
+  # # tic("regions__excluded__long")
+  # unnest(regions__excluded__long) %>%
+  # #
+  # # tic("electoral_districts__included__long")
+  # unnest(electoral_districts__included__long) %>%
+  # #
+  # # tic("electoral_districts__excluded__long")
+  # unnest(electoral_districts__excluded__long) %>%
+  # #
+  # # tic("metros__included__long")
+  # unnest(metros__included__long) %>%
+  # #
+  # # tic("metros__excluded__long")
+  # unnest(metros__excluded__long) %>%
   # # 
   # # tic("location_categories__included__long")
   # unnest(location_categories__included__long) %>%
