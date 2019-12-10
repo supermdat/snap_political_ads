@@ -98,24 +98,83 @@ wd
 
 ## Get the Data  
   
-  Read in the .csv files.
+  Unzip and read the .csv files.
+```{r}
+# url examples
+# https://storage.googleapis.com/ad-manager-political-ads-dump/political/2018/PoliticalAds.zip
+# https://storage.googleapis.com/ad-manager-political-ads-dump/political/2019/PoliticalAds.zip
+
+years <- c("2018", "2019")
+
+url_prefix <- "https://storage.googleapis.com/ad-manager-political-ads-dump/political/"
+url_suffix <- "/PoliticalAds.zip"
+
+
+for(i in years) {
+  # create a temporary directory
+  td = tempdir()
+  
+  # create the placeholder file
+  tf = tempfile(tmpdir = td, fileext = ".zip")
+  
+  # download into the placeholder file
+  download.file(url = paste0(url_prefix, i, url_suffix),
+                destfile = tf
+                )
+  
+  # get the name of the first file in the zip archive
+  name_csv = unzip(tf, list = TRUE)$Name[1]
+  name_readme = unzip(tf, list = TRUE)$Name[2]
+  
+  # unzip the file to the temporary directory
+  unzip(tf,
+        # files = name_csv,
+        exdir = td,
+        overwrite = TRUE
+        )
+  
+  # fpath is the full path to the extracted file
+  path_csv = file.path(td, name_csv)
+  # path_readme = file.path(td, name_readme)
+  
+  assign(x = paste0("data_", i),
+         value = read_csv(file = path_csv)
+         )
+  }
+
+message("data_2018")
+glimpse(data_2018)
+
+message("data_2019")
+glimpse(data_2019)
+
+
+rm(years, i, td, tf, path_csv)
+rm(list = ls(pattern = "url_"))
+rm(list = ls(pattern = "name_"))
+
+```
+  
+  Update variable names.
 ```{r}
 
 data_2018 <-
-  read_csv(file = paste0(wd,
-                         "/Data/Raw/",
-                         "/PoliticalAds2018.csv"
-                         )
-           ) %>% 
-  rename_all(funs(str_replace_all(., "\\W", "_")))
+  data_2018 %>% 
+  rename_all(~str_replace_all(.x,
+                              "\\W",
+                              "_"
+                              )
+             ) %>% 
+  rename_all(tolower)
 
 data_2019 <-
-  read_csv(file = paste0(wd,
-                         "/Data/Raw/",
-                         "/PoliticalAds2019.csv"
-                         )
-           ) %>% 
-  rename_all(funs(str_replace_all(., "\\W", "_")))
+  data_2019 %>% 
+  rename_all(~str_replace_all(.x,
+                              "\\W",
+                              "_"
+                              )
+             ) %>% 
+  rename_all(tolower)
 
 
 message("data_2018")
@@ -126,6 +185,7 @@ glimpse(data_2019)
 
 ```
   
+    
   Compare if the column names are the same
 ```{r}
 
@@ -146,10 +206,10 @@ data_20182019 <-
   bind_rows(data_2018 %>% mutate(data_yr = 2018),
             data_2019 %>% mutate(data_yr = 2019)
             ) %>% 
-  mutate(StartDate = as_datetime(StartDate),
-         EndDate = as_datetime(EndDate),
-         ad_delivery_interval = interval(start = StartDate,
-                                         end = EndDate
+  mutate(startdate = as_datetime(startdate),
+         enddate = as_datetime(enddate),
+         ad_delivery_interval = interval(start = startdate,
+                                         end = enddate
                                          ),
          ad_delivery_duration_sec = ad_delivery_interval %>% int_length(),
          ad_delivery_duration_day = ad_delivery_interval / ddays(x = 1)
@@ -159,6 +219,14 @@ data_20182019 <-
          )
   
 
+write_rds(x = data_20182019,
+          path = paste0(wd,
+                        "/Data/Interim/",
+                        "data_20182019.rds"
+                        )
+          )
+
+
 glimpse(data_20182019)
 data_20182019 %>% 
   mutate_if(is.character, factor) %>% 
@@ -166,9 +234,9 @@ data_20182019 %>%
   skim()
 
 
-View(data_20182019 %>% filter(Spend <= 0))
-View(data_20182019 %>% filter(ad_delivery_duration_day <= 0))
-View(data_20182019 %>% filter(is.na(EndDate)))
+# View(data_20182019 %>% filter(spend <= 0))
+# View(data_20182019 %>% filter(ad_delivery_duration_day <= 0))
+# View(data_20182019 %>% filter(is.na(enddate)))
 
 
 
@@ -176,24 +244,24 @@ View(data_20182019 %>% filter(is.na(EndDate)))
 ids <-
   data_2018 %>% 
   head(10) %>% 
-  pull(ADID)
+  pull(adid)
 
 # View(data_2018 %>% 
-#        filter(ADID %in% ids) %>% 
-#        select(ADID,
-#               StartDate,
-#               EndDate
+#        filter(adid %in% ids) %>% 
+#        select(adid,
+#               startdate,
+#               enddate
 #               ) %>% 
-#        arrange(ADID)
+#        arrange(adid)
 #      )
 # 
 # View(data_20182019 %>% 
-#        filter(ADID %in% ids) %>% 
-#        select(ADID,
-#               StartDate,
-#               EndDate
+#        filter(adid %in% ids) %>% 
+#        select(adid,
+#               startdate,
+#               enddate
 #               ) %>% 
-#        arrange(ADID)
+#        arrange(adid)
 #      )
 
 rm(data_2018, data_2019)
@@ -201,62 +269,175 @@ rm(data_2018, data_2019)
 ```
   
     
-  Make the data "tidy" - i.e., one row per `Interests` and one row per `Targeting_Geo___Postal_Code` (instead of having list-columns as in the original data).
+  Make the data "tidy" - i.e., one row per `interests` and one row per `targeting_geo___postal_code` (instead of having list-columns as in the original data).
 ```{r}
 
+# data_20182019 %>% count(countrycode) %>% View()
+
+tic()
 data_20182019_long <-
   data_20182019 %>% 
-  mutate(interests_long = str_split(Interests,
+  mutate(interests_long = str_split(interests,
                                     ",",
                                     ),
-         language_long = str_split(Language,
+         language_long = str_split(language,
                                    ",",
                                    ),
-         advanced_demographics_long = str_split(AdvancedDemographics,
+         advanced_demographics_long = str_split(advanceddemographics,
                                                 ",",
                                                 ),
-         Targeting_Geo___Postal_Code_long = str_split(Targeting_Geo___Postal_Code,
-                                                      ",",
-                                                      )
+         regions__included__long = str_split(regions__included_,
+                                             ",",
+                                             ),
+         regions__excluded__long = str_split(regions__excluded_,
+                                             ",",
+                                             ),
+         electoral_districts__included__long = str_split(electoral_districts__included_,
+                                             ",",
+                                             ),
+         electoral_districts__excluded__long = str_split(electoral_districts__excluded_,
+                                             ",",
+                                             ),
+         metros__included__long = str_split(metros__included_,
+                                             ",",
+                                             ),
+         metros__excluded__long = str_split(metros__excluded_,
+                                             ",",
+                                             ),
+         postal_codes__included__long = str_split(postal_codes__included_,
+                                             ",",
+                                             ),
+         postal_codes__excluded__long = str_split(postal_codes__excluded_,
+                                             ",",
+                                             ),
+         location_categories__included__long = str_split(location_categories__included_,
+                                             ",",
+                                             ),
+         location_categories__excluded__long = str_split(location_categories__excluded_,
+                                             ",",
+                                             )
+         # targeting_geo___postal_code_long = str_split(targeting_geo___postal_code,
+         #                                              ",",
+         #                                              )
          ) %>% 
-  unnest(interests_long) %>% 
-  unnest(language_long) %>% 
-  unnest(advanced_demographics_long) %>% 
-  unnest(Targeting_Geo___Postal_Code_long) %>% 
-  arrange(ADID)
+  # unnest(cols = c(interests_long,
+  #                 language_long,
+  #                 advanced_demographics_long,
+  #                 regions__included__long,
+  #                 regions__excluded__long,
+  #                 electoral_districts__included__long,
+  #                 electoral_districts__excluded__long,
+  #                 metros__included__long,
+  #                 metros__excluded__long,
+  #                 postal_codes__included__long,
+  #                 postal_codes__excluded__long,
+  #                 location_categories__included__long,
+  #                 location_categories__excluded__long
+  #                 )
+  #        ) %>%
+  # tic("postal_codes__included__long")
+  unnest(postal_codes__included__long) %>%
+  # 
+  # tic("postal_codes__excluded__long")
+  unnest(postal_codes__excluded__long) %>%
+  # 
+  # tic("interests_long")
+  unnest(interests_long) %>%
+  # 
+  # tic("language_long")
+  unnest(language_long) %>%
+  # 
+  # tic("advanced_demographics_long")
+  unnest(advanced_demographics_long) %>%
+  #
+  # tic("regions__included__long")
+  unnest(regions__included__long) %>%
+  #
+  # tic("regions__excluded__long")
+  unnest(regions__excluded__long) %>%
+  #
+  # tic("electoral_districts__included__long")
+  unnest(electoral_districts__included__long) %>%
+  #
+  # tic("electoral_districts__excluded__long")
+  unnest(electoral_districts__excluded__long) %>%
+  #
+  # tic("metros__included__long")
+  unnest(metros__included__long) %>%
+  #
+  # tic("metros__excluded__long")
+  unnest(metros__excluded__long) %>%
+  # # 
+  # # tic("location_categories__included__long")
+  # unnest(location_categories__included__long) %>%
+  # # 
+  # # tic("location_categories__excluded__long")
+  # unnest(location_categories__excluded__long) %>%
+  
+
+  # unnest(targeting_geo___postal_code_long) %>% 
+  # arrange(adid)
+  # tic("as.data.table")
+  as.data.table() %>% 
+    
+  # tic("adid")
+  setkey(adid)
+toc()
+# toc()
+# toc()
+# toc()
+# toc()
+# toc()
+# toc()
+# toc()
+# toc()
+# toc()
+# toc()
+# toc()
+# toc()
+# toc()
+# toc()
+
+
+# write_rds(x = data_20182019_long,
+#           path = paste0(wd,
+#                         "/Data/Interim/",
+#                         "data_20182019_long.rds"
+#                         )
+#           )
 
 
 dim(data_20182019)
 dim(data_20182019_long)
 
-
+class(data_20182019_long)
 glimpse(data_20182019_long)
 # View(data_20182019_long %>% head(1000))
 
 
 
 # View(data_20182019 %>%
-#        filter(ADID %in% ids) %>%
-#        select(ADID,
-#               Interests,
-#               Targeting_Geo___Postal_Code
+#        filter(adid %in% ids) %>%
+#        select(adid,
+#               interests,
+#               targeting_geo___postal_code
 #               ) %>%
-#        arrange(ADID)
+#        arrange(adid)
 #      )
 # 
-View(data_20182019_long %>%
-       filter(ADID %in% ids) %>%
-       select(ADID,
-              Interests,
-              interests_long,
-              Targeting_Geo___Postal_Code,
-              Targeting_Geo___Postal_Code_long
-              ) %>%
-       arrange(ADID)
-     )
+# View(data_20182019_long %>%
+#        filter(adid %in% ids) %>%
+#        select(adid,
+#               interests,
+#               interests_long,
+#               # targeting_geo___postal_code,
+#               # targeting_geo___postal_code_long
+#               ) %>%
+#        arrange(adid)
+#      )
 
 
-rm(data_20182019, ids)
+# rm(data_20182019, ids)
 
 ```
 
@@ -278,8 +459,8 @@ data_20182019_long %>%
 
 vars_num_wide <-
   data_20182019_long %>% 
-  mutate(ad_delivery_interval = interval(start = StartDate,
-                                         end = EndDate
+  mutate(ad_delivery_interval = interval(start = startdate,
+                                         end = enddate
                                          ),
          ad_delivery_duration_sec = ad_delivery_interval %>% int_length(),
          ad_delivery_duration_day = ad_delivery_interval / ddays(x = 1)
@@ -296,7 +477,7 @@ vars_num_wide %>% skim()
 
 nrow_clean <-
   vars_num_wide %>% 
-  filter(Spend > 0 &
+  filter(spend > 0 &
            ad_delivery_duration_day > 0
          ) %>% 
   nrow()
@@ -312,7 +493,7 @@ nrow_clean / nrow_all
 rm(list = ls(pattern = "nrow_"))
 
 View(vars_num_wide %>% filter(ad_delivery_duration_day <= 0))
-View(vars_num_wide %>% filter(is.na(EndDate)))
+View(vars_num_wide %>% filter(is.na(enddate)))
 
 
 
@@ -469,19 +650,19 @@ rm(vars_num_hist_freq)
 
 add_features <-
   vars_num_wide %>% 
-  mutate(cost_per_impression = Spend / Impressions,
-         impressions_per_dollar = Impressions / Spend,
-         # ad_delivery_interval = interval(start = StartDate,
-         #                                 end = EndDate
+  mutate(cost_per_impression = spend / impressions,
+         impressions_per_dollar = impressions / spend,
+         # ad_delivery_interval = interval(start = startdate,
+         #                                 end = enddate
          #                                 ),
          # ad_delivery_duration_sec = ad_delivery_interval %>% int_length(),
          # ad_delivery_duration_day = ad_delivery_interval / ddays(x = 1),
-         start_date = as_date(StartDate),
-         start_date_yrmth = floor_date(StartDate, unit = "month"),
-         end_date = as_date(EndDate),
-         end_date_yrmth = floor_date(EndDate, unit = "month"),
-         impressions_per_day = Impressions / ad_delivery_duration_day,
-         impressions_per_day_per_dollar = impressions_per_day / Spend
+         start_date = as_date(startdate),
+         start_date_yrmth = floor_date(startdate, unit = "month"),
+         end_date = as_date(enddate),
+         end_date_yrmth = floor_date(enddate, unit = "month"),
+         impressions_per_day = impressions / ad_delivery_duration_day,
+         impressions_per_day_per_dollar = impressions_per_day / spend
          )
 
 glimpse(add_features)
@@ -490,8 +671,8 @@ glimpse(add_features)
 View(add_features %>% head(1000))
 
 # View(add_features %>% 
-#        select(StartDate,
-#               EndDate,
+#        select(startdate,
+#               enddate,
 #               ad_delivery_duration_sec,
 #               ad_delivery_duration_day,
 #               start_date,
@@ -588,7 +769,5 @@ cnt_within_chr_cols
 # cnt_within_chr_cols$interests_long
 
 ```
-
-
 
 
