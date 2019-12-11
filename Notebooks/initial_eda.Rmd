@@ -269,10 +269,45 @@ rm(data_2018, data_2019)
 ```
   
     
+  Create the function `func_unnest_dt` based on `data.table` as using `unnest` is extremely slow for variables with many values (e.g., `postal_codes__included__long` and `postal_codes__excluded__long`). See: [https://www.johannesbgruber.eu/post/a-faster-unnest/](https://www.johannesbgruber.eu/post/a-faster-unnest/)
+```{r}
+
+func_unnest_dt <-
+  function(tbl, ...) {
+    
+    tbl = as.data.table(tbl)
+    
+    col = ensyms(...)
+    
+    clnms = syms(setdiff(colnames(tbl),
+                         as.character(col)
+                         )
+                 )
+    
+    tbl = as.data.table(tbl)
+    
+    tbl = eval(expr(tbl[ ,
+                        lapply(.SD, unlist),
+                        by = list(!!!clnms),
+                        .SDcols = as.character(col)
+                        ]
+                    )
+               )
+    
+    colnames(tbl) = c(as.character(clnms),
+                      as.character(col)
+                      )
+    
+    return(tbl)
+    }
+
+```
+  
+    
   Make the data "tidy" - i.e., one row per `interests` and one row per `targeting_geo___postal_code` (instead of having list-columns as in the original data).
 ```{r}
 
-# data_20182019 %>% count(countrycode) %>% View()
+# data_20182019 %>% count(postal_codes__included_) %>% View()
 
 tic()
 data_20182019_long <-
@@ -335,14 +370,16 @@ data_20182019_long <-
   #                 location_categories__excluded__long
   #                 )
   #        ) %>%
+  # 6104.941 sec elapsed 1 hr 42 min
   # tic("postal_codes__included__long")
-  unnest(postal_codes__included__long) %>%
-  # 
-  # tic("postal_codes__excluded__long")
-  unnest(postal_codes__excluded__long) %>%
+  # unnest(postal_codes__included__long) %>%
   # # 
-  # # tic("interests_long")
+  # # tic("postal_codes__excluded__long")
+  # unnest(postal_codes__excluded__long) %>%
+  # # 
+  # tic("interests_long")
   # unnest(interests_long) %>%
+  # func_unnest_dt(interests_long) %>% 
   # # 
   # # tic("language_long")
   # unnest(language_long) %>%
@@ -440,6 +477,115 @@ glimpse(data_20182019_long)
 # rm(data_20182019, ids)
 
 ```
+
+
+```{r}
+
+test <-
+  data_20182019_long %>% 
+  select(adid,
+         creativeurl,
+         interests_long,
+         language_long
+         ) %>% 
+  as.data.table() %>% 
+  setkey(adid)
+
+class(test)
+glimpse(test)
+
+# test_unnest <-
+#   test[ ,
+#        list(interests_long = as.character(unlist(interests_long)
+#                                           )
+#             ),
+#        by = list(adid, creativeurl)
+#        ]
+# 
+# class(test_unnest)
+# glimpse(test_unnest)
+
+View(test %>% head(1000))
+# View(test_unnest %>% head(1000))
+
+
+test_unnest_func <-
+  func_unnest_dt(tbl = test,
+                 interests_long,
+                 language_long
+                 )
+
+class(test_unnest_func)
+glimpse(test_unnest_func)
+
+# View(test %>% head(1000))
+View(test_unnest_func %>% head(1000))
+
+```
+
+
+
+```{r}
+
+DT <- data.table(
+  a = LETTERS[1:5],
+  b = LETTERS[6:10],
+  list_column1 = list(c(LETTERS[1:5]), "F", "G", "H", "I"),
+  list_column2 = list("A", "B", "C", "D", c(LETTERS[5:9]))
+)
+
+DT
+
+func_unnest_dt(DT, list_column1, list_column2)
+
+```
+
+
+```{r}
+
+unnest_dt <- function(tbl, col) {
+
+  tbl <- as.data.table(tbl)
+
+  col <- ensyms(col)
+
+  clnms <- syms(setdiff(colnames(tbl), as.character(col)))
+
+  tbl <- as.data.table(tbl)
+
+  tbl <- eval(
+    expr(tbl[ ,
+             as.character(unlist(!!!col)
+                          ),
+             by = list(!!!clnms)
+             ]
+         )
+    )
+
+  colnames(tbl) <- c(as.character(clnms), as.character(col))
+
+  tbl
+}
+
+```
+
+
+```{r}
+
+test2 <-
+  unnest_dt(tbl = test,
+          col = interests_long
+          )
+
+class(test2)
+glimpse(test2)
+
+```
+
+
+
+
+
 
 
 ## Variable Exploration
