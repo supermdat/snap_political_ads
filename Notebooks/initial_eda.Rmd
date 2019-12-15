@@ -618,7 +618,8 @@ glimpse(data_20182019_long)
   Unlist the list-colums...unfortunately, doing this one-by-one (i.e. **manually**) with `data.table` as `tidyr::unnest` was too slow and creating a function with `data.table` was not working right. **I should revisit writing the function later.**
 ```{r}
 
-tic()
+# tic()
+start <- proc.time()
 unlist_interests_long <-
   data_20182019_long[ ,
                       list(interests_long = as.character(unlist(interests_long)
@@ -722,9 +723,14 @@ unlist_location_categories__excluded__long <-
                            ),
                       by = list(adid)
        ]
-toc()
+# toc()
+end <- proc.time() - start
+end
 
 # glimpse(data_20182019_long)
+
+
+rm(start, end)
 
 ```
   
@@ -732,65 +738,195 @@ toc()
   Now join all the columns to create a singular "tidy" dataset.
 ```{r}
 
-tic()
+# tic()
+start <- proc.time()
 join_unlisted_data <-
   data_20182019_long %>% 
   select(adid:ad_delivery_duration_day) %>% 
   distinct() %>% 
-  full_join(y = unlist_interests_long,
-            by = "adid"
+  merge(y = unlist_interests_long,
+        by = "adid",
+        all = TRUE,
+        allow.cartesian = TRUE
             ) %>% 
-  full_join(y = unlist_language_long,
-            by = "adid"
+  merge(y = unlist_language_long,
+        by = "adid",
+        all = TRUE,
+        allow.cartesian = TRUE
             ) %>% 
-  full_join(y = unlist_advanced_demographics_long,
-            by = "adid"
+  merge(y = unlist_advanced_demographics_long,
+        by = "adid",
+        all = TRUE,
+        allow.cartesian = TRUE
             ) %>% 
-  full_join(y = unlist_regions__included__long,
-            by = "adid"
+  merge(y = unlist_regions__included__long,
+        by = "adid",
+        all = TRUE,
+        allow.cartesian = TRUE
             ) %>% 
-  full_join(y = unlist_regions__excluded__long,
-            by = "adid"
+  merge(y = unlist_regions__excluded__long,
+        by = "adid",
+        all = TRUE,
+        allow.cartesian = TRUE
             ) %>% 
-  full_join(y = unlist_electoral_districts__included__long,
-            by = "adid"
+  merge(y = unlist_electoral_districts__included__long,
+        by = "adid",
+        all = TRUE,
+        allow.cartesian = TRUE
             ) %>% 
-  full_join(y = unlist_electoral_districts__excluded__long,
-            by = "adid"
+  merge(y = unlist_electoral_districts__excluded__long,
+        by = "adid",
+        all = TRUE,
+        allow.cartesian = TRUE
             ) %>% 
-  full_join(y = unlist_metros__included__long,
-            by = "adid"
+  merge(y = unlist_metros__included__long,
+        by = "adid",
+        all = TRUE,
+        allow.cartesian = TRUE
             ) %>% 
-  full_join(y = unlist_metros__excluded__long,
-            by = "adid"
+  merge(y = unlist_metros__excluded__long,
+        by = "adid",
+        all = TRUE,
+        allow.cartesian = TRUE
             ) %>% 
-  full_join(y = unlist_postal_codes__included__long,
-            by = "adid"
+  merge(y = unlist_postal_codes__included__long,
+        by = "adid",
+        all = TRUE,
+        allow.cartesian = TRUE
             ) %>% 
-  full_join(y = unlist_postal_codes__excluded__long,
-            by = "adid"
+  merge(y = unlist_postal_codes__excluded__long,
+        by = "adid",
+        all = TRUE,
+        allow.cartesian = TRUE
             ) %>% 
-  full_join(y = unlist_location_categories__included__long,
-            by = "adid"
+  merge(y = unlist_location_categories__included__long,
+        by = "adid",
+        all = TRUE,
+        allow.cartesian = TRUE
             ) %>% 
-  full_join(y = unlist_location_categories__excluded__long,
-            by = "adid"
+  merge(y = unlist_location_categories__excluded__long,
+        by = "adid",
+        all = TRUE,
+        allow.cartesian = TRUE
             ) %>% 
   mutate_if(is.character, factor) %>% 
   mutate_if(is.factor, factor) %>% 
   as.data.table() %>% 
   setkey(adid)
-toc()
+# toc()
+end <- proc.time() - start
+end
 
   
 class(join_unlisted_data)
 glimpse(join_unlisted_data)
 skim(join_unlisted_data)
 
+View(join_unlisted_data %>% head(1000))
+
 
 rm(list = ls(pattern = "unlist_"))
+rm(start, end)
 
 ```
+
+
+
+```{r}
+
+# # tic()
+# start <- proc.time()
+# join_unlisted_data2 <-
+#   data_20182019_long %>% 
+#   select(adid:ad_delivery_duration_day) %>% 
+#   distinct() %>% 
+#   full_join(y = unlist_interests_long,
+#             by = "adid"
+#             
+#         
+#             ) %>% 
+#   full_join(y = unlist_language_long,
+#             by = "adid"
+#             
+#         
+#             ) %>% 
+#   full_join(y = unlist_advanced_demographics_long,
+#             by = "adid"
+#             
+#         
+#             ) %>% 
+#   full_join(y = unlist_regions__included__long,
+#             by = "adid"
+#             
+#         
+#             ) %>% 
+#   full_join(y = unlist_regions__excluded__long,
+#             by = "adid"
+#             
+#         
+#             ) %>% 
+#   full_join(y = unlist_electoral_districts__included__long,
+#             by = "adid"
+#             
+#         
+#             ) %>% 
+#   full_join(y = unlist_electoral_districts__excluded__long,
+#             by = "adid"
+#             
+#         
+#             ) %>% 
+#   full_join(y = unlist_metros__included__long,
+#             by = "adid"
+#             
+#         
+#             ) %>% 
+#   full_join(y = unlist_metros__excluded__long,
+#             by = "adid"
+#             
+#         
+#             ) %>% 
+#   full_join(y = unlist_postal_codes__included__long,
+#             by = "adid"
+#             
+#         
+#             ) %>% 
+#   full_join(y = unlist_postal_codes__excluded__long,
+#             by = "adid"
+#             
+#         
+#             ) %>% 
+#   full_join(y = unlist_location_categories__included__long,
+#             by = "adid"
+#             
+#         
+#             ) %>% 
+#   full_join(y = unlist_location_categories__excluded__long,
+#             by = "adid"
+#             
+#         
+#             ) %>% 
+#   mutate_if(is.character, factor) %>% 
+#   mutate_if(is.factor, factor) %>% 
+#   as.data.table() %>% 
+#   setkey(adid)
+# # toc()
+# end <- proc.time() - start
+# end
+# 
+#   
+# class(join_unlisted_data2)
+# glimpse(join_unlisted_data2)
+# skim(join_unlisted_data2)
+# 
+# View(join_unlisted_data2 %>% head(1000))
+# 
+# 
+# # rm(list = ls(pattern = "unlist_"))
+# rm(start, end)
+
+```
+
+
 
 
 
@@ -961,21 +1097,25 @@ rm(list = ls(pattern = "unlist_"))
 
 vars_num_wide <-
   # data_20182019_long %>% 
-  join_unlisted_data %>% 
-  mutate(ad_delivery_interval = interval(start = startdate,
-                                         end = enddate
-                                         ),
-         ad_delivery_duration_sec = ad_delivery_interval %>% int_length(),
-         ad_delivery_duration_day = ad_delivery_interval / ddays(x = 1)
-         ) %>% 
-  select(-ad_delivery_interval,
-         -ad_delivery_duration_sec
-         ) %>% 
-  mutate_if(is.character, factor) %>% 
-  mutate_if(is.factor, factor)
+  join_unlisted_data # %>% 
+  # mutate(ad_delivery_interval = interval(start = startdate,
+  #                                        end = enddate
+  #                                        ),
+  #        ad_delivery_duration_sec = ad_delivery_interval %>% int_length(),
+  #        ad_delivery_duration_day = ad_delivery_interval / ddays(x = 1)
+  #        ) %>% 
+  # select(-ad_delivery_interval,
+  #        -ad_delivery_duration_sec
+  #        ) %>% 
+  # mutate_if(is.character, factor) %>% 
+  # mutate_if(is.factor, factor)
+
+
 glimpse(vars_num_wide)
 dim(vars_num_wide)
 vars_num_wide %>% skim()
+
+
 nrow_clean <-
   vars_num_wide %>% 
   filter(spend > 0 &
