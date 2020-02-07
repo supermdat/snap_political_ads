@@ -1,68 +1,121 @@
 ---
-title: "SNAP Political Data"
-output: html_notebook
+title: 'SNAP Political Data'
+author: "M Daniel A Turse"
+date: "2020-02-06"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+  pdf_document:
+    toc: yes
+    latex_engine: xelatex
 ---
 
 
-## Setup    
-  Load the relevant libraries.
-```{r message=TRUE, warning=TRUE}
 
+
+## Setup (This is all something I would do at the beginning of each .Rmd file)  
+
+Install needed packages.
+```{r message=FALSE, warning=FALSE}
+
+# clear out anything in the working environment
 rm(list = ls())
 # .rs.restartR()
 
+
+##################################
+##  Install Packages from CRAN  ##
+##################################
+
+list_of_packages <-
+  c("tidyverse",
+    "data.table",
+    "lubridate",
+    # "broom",
+    "plotly",
+    "scales",
+    "rsample",
+    # "recipes",
+    # "caret",
+    # "DMwR",
+    # "randomForest",
+    # "glmnet",
+    # "h2o",
+    # "nnet",
+    "skimr",
+    "naniar",
+    "tictoc",
+    "furrr",
+    "doParallel",
+    "rlang" #,
+    # "tsibble",
+    # "feasts",
+    # "e1071"
+    )
+
+new_packages <-
+  list_of_packages[!(list_of_packages %in% installed.packages()[ , "Package"]
+                     )
+                   ]
+
+if(length(new_packages)) install.packages(new_packages)
+
+
+
+####################################
+##  Install Packages from GitHub  ##
+####################################
+
+if(!require(devtools)
+   ) {install.packages("devtools")}
+
+if(!("BRRR" %in% installed.packages()[, "Package"]
+     )
+   ) {devtools::install_github("brooke-watson/BRRR")}
+
+
+
+rm(list = ls(pattern = "packages"))
+
+```
+
+
+Load the relevant libraries.
+```{r message=FALSE, warning=FALSE}
+
 # data munging
-library("tidyverse")
-library("data.table")
-# library("tidyquant")    # rolling calculations
-
-
-# other
-library("skimr")          # data investigation
-library("rlang")          # creating functions
-
-
-# munge dates
-library("lubridate")
+library("tidyverse")      # general data manipulation
+library("data.table")     # general data manipulation
+library("lubridate")      # date specific munging
+# library("broom")          # cleanly obtain results from models
 
 
 # viz
-library("scales")
-library("plotly")
-library("tictoc")
+library("plotly")         # interactive plots
+library("scales")         # prettier scales
 
 
-# get tweets
-# library("rtweet")
+# modeling
+library("rsample")        # sampling and modeling infrastructure
+library("recipes")        # modeling infrastructure
+# library("caret")          # modeling infrastructure
 
 
-# NLP
-# library("tidytext")
-# library("syuzhet")
-# library("googleLanguageR")
-# graph analyses
-# library("tidygraph")
-# library("ggraph")
-
-
-# # feature engineering and data prep
-# library("recipes")
-# library("caret")
-# library("DMwR")
-
-
-# # to explore missing data
-# library("visdat")
-# library("naniar")
-
-
-# # modeling
-# library("h2o")
+# other
+library("skimr")          # inspect data
+library("naniar")         # inspect missingness of data
+library("tictoc")         # easy runtime calcs
+library("furrr")          # run `purrr` in parallel
+library("rlang")          # writing functions
+# library("tsibble")        # time series
+# library("feasts")         # time series
+library("BRRR")           # hip-hop notifications of when code finishes :- )
 
 ```
   
     
-  Session Info.
+Session Info.
 ```{r}
 
 sessionInfo()
@@ -70,28 +123,28 @@ sessionInfo()
 ```
 
 
+Play this .wav file when there is an error
+```{r include = FALSE}
+
+options(error = function() {skrrrahh("khaled2")})
+
+```
+  
+
   Setup the root directory.
-```{r "setup", include = FALSE}
-
+```{r include = FALSE}
 require("knitr")
-
 # # Use when running from AWS
 # # opts_knit$set(root.dir = "/home/rstudio/Dropbox/_AWS/snap_political_ads")
-
-
 # # Use when running from laptop
 opts_knit$set(root.dir = "/Users/mdturse/Desktop/Analytics/snap_political_ads")
-
 ```
   
     
   Setting `wd` as the working directory.
 ```{r}
-
 wd <- getwd()
-
 wd
-
 ```
 
 
@@ -99,18 +152,12 @@ wd
   
   Unzip and read the .csv files.
 ```{r}
-
 # url examples
 # https://storage.googleapis.com/ad-manager-political-ads-dump/political/2018/PoliticalAds.zip
 # https://storage.googleapis.com/ad-manager-political-ads-dump/political/2019/PoliticalAds.zip
-
-
 years <- c("2018", "2019")
-
 url_prefix <- "https://storage.googleapis.com/ad-manager-political-ads-dump/political/"
 url_suffix <- "/PoliticalAds.zip"
-
-
 for(i in years) {
   # create a temporary directory
   td = tempdir()
@@ -142,24 +189,18 @@ for(i in years) {
          value = read_csv(file = path_csv)
          )
   }
-
 message("data_2018_raw")
 glimpse(data_2018_raw)
-
 message("data_2019_raw")
 glimpse(data_2019_raw)
-
-
 rm(years, i, td, tf, path_csv)
 rm(list = ls(pattern = "url_"))
 rm(list = ls(pattern = "name_"))
-
 ```
   
     
   Update variable names.
 ```{r}
-
 data_2018 <-
   data_2018_raw %>% 
   rename_all(~str_replace_all(.x,
@@ -168,8 +209,6 @@ data_2018 <-
                               )
              ) %>% 
   rename_all(tolower)
-
-
 data_2019 <-
   data_2019_raw %>% 
   rename_all(~str_replace_all(.x,
@@ -178,36 +217,26 @@ data_2019 <-
                               )
              ) %>% 
   rename_all(tolower)
-
-
 message("data_2018")
 glimpse(data_2018)
-
 message("data_2019")
 glimpse(data_2019)
-
-
 rm(list = ls(pattern = "_raw"))
-
 ```
   
     
   Compare if the column names are the same
 ```{r}
-
 ncol(data_2018)
 ncol(data_2019)
-
 setdiff(colnames(data_2018),
         colnames(data_2019)
         )
-
 ```
   
     
   Bind the rows to create a single dataset.
 ```{r}
-
 data_20182019 <-
   bind_rows(data_2018 %>% mutate(data_yr = 2018),
             data_2019 %>% mutate(data_yr = 2019)
@@ -224,34 +253,24 @@ data_20182019 <-
          -ad_delivery_duration_sec
          )
   
-
 # write_rds(x = data_20182019,
 #           path = paste0(wd,
 #                         "/Data/Interim/",
 #                         "data_20182019.rds"
 #                         )
 #           )
-
-
 glimpse(data_20182019)
-
 data_20182019 %>% 
   mutate_if(is.character, factor) %>% 
   mutate_if(is.factor, factor) %>% 
   skim()
-
-
 # View(data_20182019 %>% filter(spend <= 0))
 # View(data_20182019 %>% filter(ad_delivery_duration_day <= 0))
 # View(data_20182019 %>% filter(is.na(enddate)))
-
-
 ids <-
   data_2018 %>% 
   head(10) %>% 
   pull(adid)
-
-
 # View(data_2018 %>% 
 #        filter(adid %in% ids) %>% 
 #        select(adid,
@@ -269,16 +288,12 @@ ids <-
 #               ) %>% 
 #        arrange(adid)
 #      )
-
-
 rm(data_2018, data_2019)
-
 ```
   
     
   Create the function `func_unnest_dt` based on `data.table` as using `unnest` is extremely slow for variables with many values (e.g., `postal_codes__included__long` and `postal_codes__excluded__long`). See: [https://www.johannesbgruber.eu/post/a-faster-unnest/](https://www.johannesbgruber.eu/post/a-faster-unnest/)
 ```{r}
-
 # func_unnest_dt <-
 #   function(tbl, ...) {
 #     
@@ -307,15 +322,12 @@ rm(data_2018, data_2019)
 #     
 #     return(tbl)
 #     }
-
 ```
   
     
   Make the data "tidy" - i.e., one row per `interests` and one row per `targeting_geo___postal_code` (instead of having list-columns as in the original data).
 ```{r}
-
 # data_20182019 %>% count(postal_codes__included_) %>% View()
-
 tic()
 data_20182019_long <-
   data_20182019 %>% 
@@ -442,22 +454,16 @@ toc()
 # toc()
 # toc()
 # toc()
-
-
 # write_rds(x = data_20182019_long,
 #           path = paste0(wd,
 #                         "/Data/Interim/",
 #                         "data_20182019_long.rds"
 #                         )
 #           )
-
-
 dim(data_20182019)
 dim(data_20182019_long)
 class(data_20182019_long)
 glimpse(data_20182019_long)
-
-
 # View(data_20182019_long %>% head(1000))
 # View(data_20182019 %>%
 #        filter(adid %in% ids) %>%
@@ -478,15 +484,11 @@ glimpse(data_20182019_long)
 #               ) %>%
 #        arrange(adid)
 #      )
-
-
 # rm(data_20182019, ids)
-
 ```
 
 
 ```{r}
-
 # test <-
 #   data_20182019_long %>% 
 #   select(adid,
@@ -500,13 +502,11 @@ glimpse(data_20182019_long)
 # 
 # class(test)
 # glimpse(test)
-
 ```
 
 
 
 ```{r}
-
 # test_unnest_interests <-
 #   test[ ,
 #        list(
@@ -548,13 +548,10 @@ glimpse(data_20182019_long)
 # View(test %>% filter(!is.na(interests_long) & !is.na(language_long)))
 # View(test_unnest_interests %>% head(1000))
 # View(test_unnest_language %>% head(1000))
-
-
 ```
 
 
 ```{r}
-
 # test_full_join <-
 #   test_unnest_interests %>% 
 #   full_join(y = test_unnest_language,
@@ -566,13 +563,11 @@ glimpse(data_20182019_long)
 # 
 # View(test_full_join %>% head(1000))
 # View(test_full_join %>% filter(adid == "82108d4e8b8e53d651443d6f5a128c2dbca1347bbb2c4fbd6c2e49dfc6d2269a"))
-
 ```
 
 
 
 ```{r}
-
 # var_names <-
 #   c("interests_long",
 #     "language_long",
@@ -610,14 +605,11 @@ glimpse(data_20182019_long)
 #                 ]
 #          }
 #        )
-
-
 ```
   
     
   Unlist the list-colums...unfortunately, doing this one-by-one (i.e. **manually**) with `data.table` as `tidyr::unnest` was too slow and creating a function with `data.table` was not working right. **I should revisit writing the function later.**
 ```{r}
-
 # tic()
 start <- proc.time()
 unlist_interests_long <-
@@ -627,7 +619,6 @@ unlist_interests_long <-
                            ),
                       by = list(adid)
                       ]
-
 unlist_language_long <-
   data_20182019_long[ ,
                       list(language_long = as.character(unlist(language_long)
@@ -635,7 +626,6 @@ unlist_language_long <-
                            ),
                       by = list(adid)
                       ]
-
 unlist_advanced_demographics_long <-
   data_20182019_long[ ,
                       list(advanced_demographics_long = as.character(unlist(advanced_demographics_long)
@@ -643,7 +633,6 @@ unlist_advanced_demographics_long <-
                            ),
                       by = list(adid)
                       ]
-
 unlist_regions__included__long <-
   data_20182019_long[ ,
                       list(regions__included__long = as.character(unlist(regions__included__long)
@@ -651,7 +640,6 @@ unlist_regions__included__long <-
                            ),
                       by = list(adid)
                       ]
-
 unlist_regions__excluded__long <-
   data_20182019_long[ ,
                       list(regions__excluded__long = as.character(unlist(regions__excluded__long)
@@ -659,7 +647,6 @@ unlist_regions__excluded__long <-
                            ),
                       by = list(adid)
                       ]
-
 unlist_electoral_districts__included__long <-
   data_20182019_long[ ,
                       list(electoral_districts__included__long = as.character(unlist(electoral_districts__included__long)
@@ -667,7 +654,6 @@ unlist_electoral_districts__included__long <-
                            ),
                       by = list(adid)
                       ]
-
 unlist_electoral_districts__excluded__long <-
   data_20182019_long[ ,
                       list(electoral_districts__excluded__long = as.character(unlist(electoral_districts__excluded__long)
@@ -675,7 +661,6 @@ unlist_electoral_districts__excluded__long <-
                            ),
                       by = list(adid)
                       ]
-
 unlist_metros__included__long <-
   data_20182019_long[ ,
                       list(metros__included__long = as.character(unlist(metros__included__long)
@@ -683,7 +668,6 @@ unlist_metros__included__long <-
                            ),
                       by = list(adid)
                       ]
-
 unlist_metros__excluded__long <-
   data_20182019_long[ ,
                       list(metros__excluded__long = as.character(unlist(metros__excluded__long)
@@ -691,7 +675,6 @@ unlist_metros__excluded__long <-
                            ),
                       by = list(adid)
                       ]
-
 unlist_postal_codes__included__long <-
   data_20182019_long[ ,
                       list(postal_codes__included__long = as.character(unlist(postal_codes__included__long)
@@ -699,7 +682,6 @@ unlist_postal_codes__included__long <-
                            ),
                       by = list(adid)
                       ]
-
 unlist_postal_codes__excluded__long <-
   data_20182019_long[ ,
                       list(postal_codes__excluded__long = as.character(unlist(postal_codes__excluded__long)
@@ -707,7 +689,6 @@ unlist_postal_codes__excluded__long <-
                            ),
                       by = list(adid)
                       ]
-
 unlist_location_categories__included__long <-
   data_20182019_long[ ,
                       list(location_categories__included__long = as.character(unlist(location_categories__included__long)
@@ -715,7 +696,6 @@ unlist_location_categories__included__long <-
                            ),
                       by = list(adid)
                       ]
-
 unlist_location_categories__excluded__long <-
   data_20182019_long[ ,
                       list(location_categories__excluded__long = as.character(unlist(location_categories__excluded__long)
@@ -726,18 +706,13 @@ unlist_location_categories__excluded__long <-
 # toc()
 end <- proc.time() - start
 end
-
 # glimpse(data_20182019_long)
-
-
 rm(start, end)
-
 ```
   
     
   Now join all the columns to create a singular "tidy" dataset.
 ```{r}
-
 # tic()
 start <- proc.time()
 join_unlisted_data <-
@@ -816,24 +791,107 @@ join_unlisted_data <-
 # toc()
 end <- proc.time() - start
 end
-
   
 class(join_unlisted_data)
 glimpse(join_unlisted_data)
 skim(join_unlisted_data)
-
-View(join_unlisted_data %>% head(1000))
-
-
+# View(join_unlisted_data %>% head(1000))
 rm(list = ls(pattern = "unlist_"))
 rm(start, end)
+```
+
+
+```{r}
+
+join_unlisted_data %>% count(countrycode, sort = TRUE)
+
+us_only <-
+  join_unlisted_data %>% 
+  filter(countrycode == "united states")
+
+# skim(us_only$ad_delivery_duration_day)
+
+data_20182019 %>% count(adid) %>% filter(n != 1)
+data_20182019_long %>% count(adid) %>% filter(n != 1)
+
+us_only %>% select(adid) %>% distinct() %>% nrow()
+us_only %>% 
+  filter(ad_delivery_duration_day < 0) %>% 
+  select(adid) %>% 
+  distinct() %>% 
+  nrow()
+us_only %>% 
+  filter(ad_delivery_duration_day >= 0) %>% 
+  select(adid) %>% 
+  distinct() %>% 
+  nrow()
+us_only %>% 
+  filter(is.na(ad_delivery_duration_day)
+         ) %>% 
+  select(adid) %>% 
+  distinct() %>% 
+  nrow()
+
+
+
+negative_ad_duration <-
+  us_only %>% 
+  select(adid,
+         ad_delivery_duration_day
+         ) %>% 
+  distinct() %>% 
+  filter(ad_delivery_duration_day < 0) %>% 
+  pull(adid)
+
+# View(us_only %>% 
+#        filter(adid %in% negative_ad_duration) %>% 
+#        select(!dplyr::ends_with("long")) %>% 
+#        distinct()
+#      )
+
+
+us_only_skim <-
+  us_only %>% 
+  filter(!(adid %in% negative_ad_duration)
+         ) %>% 
+  # select(adid) %>% 
+  # distinct() %>% 
+  # nrow()
+  skim()
+
+# us_only_skim
+
+vars_abv_pt5_missing <-
+  us_only_skim %>% 
+  filter(complete_rate > 0.05) %>% 
+  pull(skim_variable)
+
+
+us_only %>% 
+  select(-one_of(vars_abv_pt5_missing)
+         ) %>% 
+  colnames()
+
+us_only_vars_abv_pt5_missing <-
+  us_only %>% 
+  select(one_of(vars_abv_pt5_missing)
+         )
+
+skim(us_only_vars_abv_pt5_missing)
+
+
+# View(us_only_vars_abv_pt5_missing %>% 
+#        head(1000)
+#      )
+
+
+rm(negative_ad_duration, us_only_skim, vars_abv_pt5_missing)
 
 ```
 
 
 
 ```{r}
-
 # # tic()
 # start <- proc.time()
 # join_unlisted_data2 <-
@@ -923,7 +981,6 @@ rm(start, end)
 # 
 # # rm(list = ls(pattern = "unlist_"))
 # rm(start, end)
-
 ```
 
 
@@ -941,7 +998,6 @@ rm(start, end)
 
 
 ```{r}
-
 # tbl = test[ ,
 #            lapply(.SD, unlist),
 #            by = list(adid,
@@ -956,13 +1012,11 @@ rm(start, end)
 # colnames(tbl) = c(as.character(clnms),
 #                   as.character(col)
 #                   )
-
 ```
   
     
   Create the function `func_unnest_dt` based on `data.table` as using `unnest` is extremely slow for variables with many values (e.g., `postal_codes__included__long` and `postal_codes__excluded__long`). See: [https://www.johannesbgruber.eu/post/a-faster-unnest/](https://www.johannesbgruber.eu/post/a-faster-unnest/)
 ```{r}
-
 # func_unnest_dt <-
 #   function(tbl, ...) {
 #     
@@ -991,13 +1045,11 @@ rm(start, end)
 #     
 #     return(tbl)
 #   }
-
 ```
 
 
 
 ```{r}
-
 # test_unnest_func <-
 #   func_unnest_dt(tbl = test,
 #                  interests_long#,
@@ -1010,7 +1062,6 @@ rm(start, end)
 # 
 # View(test %>% head(1000))
 # View(test_unnest_func %>% head(1000))
-
 ```
 
 
@@ -1026,12 +1077,10 @@ rm(start, end)
 # DT
 # 
 # func_unnest_dt(DT, list_column1, list_column2)
-
 ```
 
 
 ```{r}
-
 # unnest_dt <- function(tbl, col) {
 #   tbl <- as.data.table(tbl)
 #   
@@ -1070,7 +1119,6 @@ rm(start, end)
 # 
 # class(test2)
 # glimpse(test2)
-
 ```
 
 
@@ -1081,84 +1129,60 @@ rm(start, end)
 
 ## Variable Exploration
 ```{r}
-
 # dim(data_20182019_long)
-
 # data_20182019_long %>% 
 #   mutate_if(is.character, factor) %>% 
 #   mutate_if(is.factor, factor) %>% 
 #   skim()
-
 ```
 
     
   Inspect individual variables.
 ```{r}
-
-vars_num_wide <-
-  # data_20182019_long %>% 
-  join_unlisted_data # %>% 
-  # mutate(ad_delivery_interval = interval(start = startdate,
-  #                                        end = enddate
-  #                                        ),
-  #        ad_delivery_duration_sec = ad_delivery_interval %>% int_length(),
-  #        ad_delivery_duration_day = ad_delivery_interval / ddays(x = 1)
-  #        ) %>% 
-  # select(-ad_delivery_interval,
-  #        -ad_delivery_duration_sec
-  #        ) %>% 
-  # mutate_if(is.character, factor) %>% 
-  # mutate_if(is.factor, factor)
-
-
-glimpse(vars_num_wide)
-dim(vars_num_wide)
-vars_num_wide %>% skim()
-
-
-nrow_clean <-
-  vars_num_wide %>% 
-  filter(spend > 0 &
-           ad_delivery_duration_day > 0
-         ) %>% 
-  nrow()
-
-
-nrow_all <-
-  vars_num_wide %>% nrow()
-
-nrow_clean
-nrow_all
-nrow_clean / nrow_all
-
-
-rm(list = ls(pattern = "nrow_"))
-
-
-
-View(vars_num_wide %>% filter(ad_delivery_duration_day <= 0))
-View(vars_num_wide %>% filter(is.na(enddate)))
-
-
-
-vars_num_long <-
-  vars_num_wide %>% 
-  select_if(is.numeric) %>% 
-  pivot_longer(cols = everything(),
-               names_to = "variable",
-               values_to = "value"
-               ) %>% 
-  # group_by(variable) %>% 
-  # nest() 
-  split(.$variable)
-
-
-glimpse(vars_num_long$ad_delivery_duration_day)
-vars_num_long %>% map(~skim(.x))
-
-
-# rm(vars_num_wide)
-
+# vars_num_wide <-
+#   # data_20182019_long %>% 
+#   join_unlisted_data # %>% 
+#   # mutate(ad_delivery_interval = interval(start = startdate,
+#   #                                        end = enddate
+#   #                                        ),
+#   #        ad_delivery_duration_sec = ad_delivery_interval %>% int_length(),
+#   #        ad_delivery_duration_day = ad_delivery_interval / ddays(x = 1)
+#   #        ) %>% 
+#   # select(-ad_delivery_interval,
+#   #        -ad_delivery_duration_sec
+#   #        ) %>% 
+#   # mutate_if(is.character, factor) %>% 
+#   # mutate_if(is.factor, factor)
+# glimpse(vars_num_wide)
+# dim(vars_num_wide)
+# vars_num_wide %>% skim()
+# nrow_clean <-
+#   vars_num_wide %>% 
+#   filter(spend > 0 &
+#            ad_delivery_duration_day > 0
+#          ) %>% 
+#   nrow()
+# nrow_all <-
+#   vars_num_wide %>% nrow()
+# nrow_clean
+# nrow_all
+# nrow_clean / nrow_all
+# rm(list = ls(pattern = "nrow_"))
+# View(vars_num_wide %>% filter(ad_delivery_duration_day <= 0))
+# View(vars_num_wide %>% filter(is.na(enddate)))
+# vars_num_long <-
+#   vars_num_wide %>% 
+#   select_if(is.numeric) %>% 
+#   pivot_longer(cols = everything(),
+#                names_to = "variable",
+#                values_to = "value"
+#                ) %>% 
+#   # group_by(variable) %>% 
+#   # nest() 
+#   split(.$variable)
+# glimpse(vars_num_long$ad_delivery_duration_day)
+# vars_num_long %>% map(~skim(.x))
+# # rm(vars_num_wide)
 ```
 
 
@@ -1195,88 +1219,88 @@ vars_num_long %>% map(~skim(.x))
 
 
 ```{r}
-vars_num_hist_freq <-
-  pmap(.l = list(a = vars_num_long,
-                 b = names(vars_num_long)
-                 ),
-       .f = function(a, b) {
-         plot_basic =
-           a %>% 
-           # ggplot(aes(#x = log1p(value)
-           #            x = value
-           #            ),
-           #        ) +
-           ggplot() +
-           theme_minimal() +
-           # scale_x_continuous(labels = comma,
-           #                    trans = scales::log1p_trans()
-           #                    ) +
-           # labs(x = paste0("Log of ", b)
-           #      ) +
-           NULL
-         
-         hist =
-           plot_basic +
-           geom_histogram(aes(x = value),
-                          na.rm = TRUE,
-                          bins = 50
-                          ) +
-           scale_x_continuous(labels = comma#,
-                              # trans = scales::log1p_trans()
-                              ) +
-           labs(title = paste0("Histogram of ",
-                               b
-                               ),
-                subtitle = "logged values",
-                x = b
-                )
-         
-         freq =
-           plot_basic +
-           geom_freqpoly(aes(x = value),
-                         na.rm = TRUE,
-                         bins = 50
-                         ) +
-           scale_x_continuous(labels = comma#,
-                              # trans = scales::log1p_trans()
-                              ) +
-           labs(title = paste0("Freqpoly of ",
-                               b
-                               ),
-                subtitle = "logged values",
-                x = b
-                )
-         
-         box =
-           plot_basic +
-           geom_boxplot(aes(y = value),
-                        na.rm = TRUE,
-                        outlier.color = "red"
-                        ) +
-           scale_y_continuous(labels = comma#,
-                              # trans = scales::log1p_trans()
-                              ) +
-           labs(title = paste0("Boxplot of ",
-                               b
-                               ),
-                subtitle = "logged values",
-                x = b
-                )
-         
-         # return(list(hist = hist,
-         #             freq = freq,
-         #             box = box
-         #             )
-         #        )
-         return(list(hist = ggplotly(hist),
-                     freq = ggplotly(freq),
-                     box = ggplotly(box)
-                     )
-                )
-         }
-       )
-vars_num_hist_freq
-rm(vars_num_hist_freq)
+# vars_num_hist_freq <-
+#   pmap(.l = list(a = vars_num_long,
+#                  b = names(vars_num_long)
+#                  ),
+#        .f = function(a, b) {
+#          plot_basic =
+#            a %>% 
+#            # ggplot(aes(#x = log1p(value)
+#            #            x = value
+#            #            ),
+#            #        ) +
+#            ggplot() +
+#            theme_minimal() +
+#            # scale_x_continuous(labels = comma,
+#            #                    trans = scales::log1p_trans()
+#            #                    ) +
+#            # labs(x = paste0("Log of ", b)
+#            #      ) +
+#            NULL
+#          
+#          hist =
+#            plot_basic +
+#            geom_histogram(aes(x = value),
+#                           na.rm = TRUE,
+#                           bins = 50
+#                           ) +
+#            scale_x_continuous(labels = comma#,
+#                               # trans = scales::log1p_trans()
+#                               ) +
+#            labs(title = paste0("Histogram of ",
+#                                b
+#                                ),
+#                 subtitle = "logged values",
+#                 x = b
+#                 )
+#          
+#          freq =
+#            plot_basic +
+#            geom_freqpoly(aes(x = value),
+#                          na.rm = TRUE,
+#                          bins = 50
+#                          ) +
+#            scale_x_continuous(labels = comma#,
+#                               # trans = scales::log1p_trans()
+#                               ) +
+#            labs(title = paste0("Freqpoly of ",
+#                                b
+#                                ),
+#                 subtitle = "logged values",
+#                 x = b
+#                 )
+#          
+#          box =
+#            plot_basic +
+#            geom_boxplot(aes(y = value),
+#                         na.rm = TRUE,
+#                         outlier.color = "red"
+#                         ) +
+#            scale_y_continuous(labels = comma#,
+#                               # trans = scales::log1p_trans()
+#                               ) +
+#            labs(title = paste0("Boxplot of ",
+#                                b
+#                                ),
+#                 subtitle = "logged values",
+#                 x = b
+#                 )
+#          
+#          # return(list(hist = hist,
+#          #             freq = freq,
+#          #             box = box
+#          #             )
+#          #        )
+#          return(list(hist = ggplotly(hist),
+#                      freq = ggplotly(freq),
+#                      box = ggplotly(box)
+#                      )
+#                 )
+#          }
+#        )
+# vars_num_hist_freq
+# rm(vars_num_hist_freq)
 ```
 
 
@@ -1285,105 +1309,107 @@ rm(vars_num_hist_freq)
   
   Creating new features.
 ```{r}
-add_features <-
-  vars_num_wide %>% 
-  mutate(cost_per_impression = spend / impressions,
-         impressions_per_dollar = impressions / spend,
-         # ad_delivery_interval = interval(start = startdate,
-         #                                 end = enddate
-         #                                 ),
-         # ad_delivery_duration_sec = ad_delivery_interval %>% int_length(),
-         # ad_delivery_duration_day = ad_delivery_interval / ddays(x = 1),
-         start_date = as_date(startdate),
-         start_date_yrmth = floor_date(startdate, unit = "month"),
-         end_date = as_date(enddate),
-         end_date_yrmth = floor_date(enddate, unit = "month"),
-         impressions_per_day = impressions / ad_delivery_duration_day,
-         impressions_per_day_per_dollar = impressions_per_day / spend
-         )
-glimpse(add_features)
-View(add_features %>% head(1000))
-# View(add_features %>% 
-#        select(startdate,
-#               enddate,
-#               ad_delivery_duration_sec,
-#               ad_delivery_duration_day,
-#               start_date,
-#               start_date_yrmth,
-#               end_date
-#               ) %>%
-#        head(100)
-#      )
+# add_features <-
+#   vars_num_wide %>% 
+#   mutate(cost_per_impression = spend / impressions,
+#          impressions_per_dollar = impressions / spend,
+#          # ad_delivery_interval = interval(start = startdate,
+#          #                                 end = enddate
+#          #                                 ),
+#          # ad_delivery_duration_sec = ad_delivery_interval %>% int_length(),
+#          # ad_delivery_duration_day = ad_delivery_interval / ddays(x = 1),
+#          start_date = as_date(startdate),
+#          start_date_yrmth = floor_date(startdate, unit = "month"),
+#          end_date = as_date(enddate),
+#          end_date_yrmth = floor_date(enddate, unit = "month"),
+#          impressions_per_day = impressions / ad_delivery_duration_day,
+#          impressions_per_day_per_dollar = impressions_per_day / spend
+#          )
+# glimpse(add_features)
+# View(add_features %>% head(1000))
+# # View(add_features %>% 
+# #        select(startdate,
+# #               enddate,
+# #               ad_delivery_duration_sec,
+# #               ad_delivery_duration_day,
+# #               start_date,
+# #               start_date_yrmth,
+# #               end_date
+# #               ) %>%
+# #        head(100)
+# #      )
 rm(data_20182019_long)
 ```
   
 
 ```{r}
-View(add_features %>% 
-  count(interests_long,
-        sort = TRUE
-        )
-  )
-View(add_features %>% 
-  mutate(interests_long_lump = fct_lump(f = interests_long,
-                                        prop = 0.01,
-                                        # n = 20,
-                                        other_level = "_Other"
-                                        )
-         ) %>% 
-  count(interests_long_lump,
-        sort = TRUE
-        )
-  )
+# View(add_features %>% 
+#   count(interests_long,
+#         sort = TRUE
+#         )
+#   )
+# View(add_features %>% 
+#   mutate(interests_long_lump = fct_lump(f = interests_long,
+#                                         prop = 0.01,
+#                                         # n = 20,
+#                                         other_level = "_Other"
+#                                         )
+#          ) %>% 
+#   count(interests_long_lump,
+#         sort = TRUE
+#         )
+#   )
 ```
 
 
 ```{r}
-smry <-
-  add_features %>% 
-  select_if(is.character) %>% 
-  mutate_all(factor) %>% 
-  skim()
-str(smry)
-smry
-# View(smry %>% as.data.frame())
-chr_cols <-
-  add_features %>% 
-  select_if(is.character) %>% 
-  colnames()
-names(chr_cols) <- chr_cols
-# str(chr_cols)
-cnt_within_chr_cols <-
-  pmap(.l = list(a = chr_cols
-                 ),
-       .f = function(a) { #, b) {
-         quo_a = enquo(a)
-         
-         data_count = add_features %>% 
-           count(!!!rlang::parse_exprs(a),
-                 sort = TRUE,
-                 name = "cnt_n"
-                 ) %>% 
-           mutate(is_na = if_else(is.na(!!!rlang::parse_exprs(a)
-                                        ),
-                                  0,
-                                  1
-                                  )
-                  ) %>% 
-           arrange(desc(is_na),
-                   desc(cnt_n)
-                   ) %>% 
-           mutate(cnt_n_cumsum = cumsum(cnt_n),
-                  cnt_pct = cnt_n / sum(cnt_n),
-                  cnt_pct_cumsum = cumsum(cnt_pct),
-                  row_num = row_number(),
-                  row_num_pct = row_num / max(row_num)
-                  )
-         
-         return(data_count)
-         }
-       )
-cnt_within_chr_cols
-# cnt_within_chr_cols$interests_long
+# smry <-
+#   add_features %>% 
+#   select_if(is.character) %>% 
+#   mutate_all(factor) %>% 
+#   skim()
+# str(smry)
+# smry
+# # View(smry %>% as.data.frame())
+# chr_cols <-
+#   add_features %>% 
+#   select_if(is.character) %>% 
+#   colnames()
+# names(chr_cols) <- chr_cols
+# # str(chr_cols)
+# cnt_within_chr_cols <-
+#   pmap(.l = list(a = chr_cols
+#                  ),
+#        .f = function(a) { #, b) {
+#          quo_a = enquo(a)
+#          
+#          data_count = add_features %>% 
+#            count(!!!rlang::parse_exprs(a),
+#                  sort = TRUE,
+#                  name = "cnt_n"
+#                  ) %>% 
+#            mutate(is_na = if_else(is.na(!!!rlang::parse_exprs(a)
+#                                         ),
+#                                   0,
+#                                   1
+#                                   )
+#                   ) %>% 
+#            arrange(desc(is_na),
+#                    desc(cnt_n)
+#                    ) %>% 
+#            mutate(cnt_n_cumsum = cumsum(cnt_n),
+#                   cnt_pct = cnt_n / sum(cnt_n),
+#                   cnt_pct_cumsum = cumsum(cnt_pct),
+#                   row_num = row_number(),
+#                   row_num_pct = row_num / max(row_num)
+#                   )
+#          
+#          return(data_count)
+#          }
+#        )
+# cnt_within_chr_cols
+# # cnt_within_chr_cols$interests_long
 ```
+
+
 
