@@ -132,7 +132,7 @@ options(error = function() {skrrrahh("khaled2")})
   
 
   Setup the root directory.
-```{r include = FALSE}
+```{r setup, include=FALSE}
 require("knitr")
 # # Use when running from AWS
 # # opts_knit$set(root.dir = "/home/rstudio/Dropbox/_AWS/snap_political_ads")
@@ -259,6 +259,7 @@ data_20182019 <-
 #                         "data_20182019.rds"
 #                         )
 #           )
+
 glimpse(data_20182019)
 data_20182019 %>% 
   mutate_if(is.character, factor) %>% 
@@ -875,8 +876,11 @@ us_only %>%
 us_only_vars_abv_pt5_missing <-
   us_only %>% 
   select(one_of(vars_abv_pt5_missing)
-         )
+         ) %>% 
+  mutate_if(is.factor, factor)
 
+
+str(us_only_vars_abv_pt5_missing)
 skim(us_only_vars_abv_pt5_missing)
 
 
@@ -886,6 +890,29 @@ skim(us_only_vars_abv_pt5_missing)
 
 
 rm(negative_ad_duration, us_only_skim, vars_abv_pt5_missing)
+
+```
+
+```{r}
+
+many_impressions <-
+  us_only_vars_abv_pt5_missing %>% 
+  arrange(desc(impressions)) %>% 
+  select(-dplyr::contains("_long")
+         ) %>% 
+  distinct() %>% 
+  head(100)
+
+
+write_csv(x = many_impressions,
+          path = paste0(wd,
+                        "/Data/Interim/",
+                        "many_impressions.csv"
+                        )
+          )
+
+
+View(many_impressions)
 
 ```
 
