@@ -18,16 +18,12 @@ output:
 
 Install needed packages.
 ```{r message=FALSE, warning=FALSE}
-
 # clear out anything in the working environment
 rm(list = ls())
 # .rs.restartR()
-
-
 ##################################
 ##  Install Packages from CRAN  ##
 ##################################
-
 list_of_packages <-
   c("tidyverse",
     "data.table",
@@ -53,55 +49,37 @@ list_of_packages <-
     # "feasts",
     # "e1071"
     )
-
 new_packages <-
   list_of_packages[!(list_of_packages %in% installed.packages()[ , "Package"]
                      )
                    ]
-
 if(length(new_packages)) install.packages(new_packages)
-
-
-
 ####################################
 ##  Install Packages from GitHub  ##
 ####################################
-
 if(!require(devtools)
    ) {install.packages("devtools")}
-
 if(!("BRRR" %in% installed.packages()[, "Package"]
      )
    ) {devtools::install_github("brooke-watson/BRRR")}
-
-
-
 rm(list = ls(pattern = "packages"))
-
 ```
 
 
 Load the relevant libraries.
 ```{r message=FALSE, warning=FALSE}
-
 # data munging
 library("tidyverse")      # general data manipulation
 library("data.table")     # general data manipulation
 library("lubridate")      # date specific munging
 # library("broom")          # cleanly obtain results from models
-
-
 # viz
 library("plotly")         # interactive plots
 library("scales")         # prettier scales
-
-
 # modeling
 library("rsample")        # sampling and modeling infrastructure
 library("recipes")        # modeling infrastructure
 # library("caret")          # modeling infrastructure
-
-
 # other
 library("skimr")          # inspect data
 library("naniar")         # inspect missingness of data
@@ -111,23 +89,18 @@ library("rlang")          # writing functions
 # library("tsibble")        # time series
 # library("feasts")         # time series
 library("BRRR")           # hip-hop notifications of when code finishes :- )
-
 ```
   
     
 Session Info.
 ```{r}
-
 sessionInfo()
-
 ```
 
 
 Play this .wav file when there is an error
 ```{r include = FALSE}
-
 options(error = function() {skrrrahh("khaled2")})
-
 ```
   
 
@@ -247,7 +220,8 @@ data_20182019 <-
                                          end = enddate
                                          ),
          ad_delivery_duration_sec = ad_delivery_interval %>% int_length(),
-         ad_delivery_duration_day = ad_delivery_interval / ddays(x = 1)
+         ad_delivery_duration_day = ad_delivery_interval / ddays(x = 1), 
+         impressions_per_day = impressions / ad_delivery_duration_day
          ) %>% 
   select(-ad_delivery_interval,
          -ad_delivery_duration_sec
@@ -259,12 +233,14 @@ data_20182019 <-
 #                         "data_20182019.rds"
 #                         )
 #           )
-
 glimpse(data_20182019)
 data_20182019 %>% 
   mutate_if(is.character, factor) %>% 
   mutate_if(is.factor, factor) %>% 
   skim()
+
+skrrrahh()
+
 # View(data_20182019 %>% filter(spend <= 0))
 # View(data_20182019 %>% filter(ad_delivery_duration_day <= 0))
 # View(data_20182019 %>% filter(is.na(enddate)))
@@ -441,6 +417,10 @@ data_20182019_long <-
   # tic("adid")
   setkey(adid)
 toc()
+
+skrrrahh()
+
+
 # toc()
 # toc()
 # toc()
@@ -707,6 +687,9 @@ unlist_location_categories__excluded__long <-
 # toc()
 end <- proc.time() - start
 end
+
+skrrrahh()
+
 # glimpse(data_20182019_long)
 rm(start, end)
 ```
@@ -718,7 +701,7 @@ rm(start, end)
 start <- proc.time()
 join_unlisted_data <-
   data_20182019_long %>% 
-  select(adid:ad_delivery_duration_day) %>% 
+  select(adid:impressions_per_day) %>% 
   distinct() %>% 
   merge(y = unlist_interests_long,
         by = "adid",
@@ -792,6 +775,8 @@ join_unlisted_data <-
 # toc()
 end <- proc.time() - start
 end
+
+skrrrahh()
   
 class(join_unlisted_data)
 glimpse(join_unlisted_data)
@@ -815,24 +800,27 @@ us_only <-
 data_20182019 %>% count(adid) %>% filter(n != 1)
 data_20182019_long %>% count(adid) %>% filter(n != 1)
 
+
 us_only %>% select(adid) %>% distinct() %>% nrow()
+
 us_only %>% 
   filter(ad_delivery_duration_day < 0) %>% 
   select(adid) %>% 
   distinct() %>% 
   nrow()
+
 us_only %>% 
   filter(ad_delivery_duration_day >= 0) %>% 
   select(adid) %>% 
   distinct() %>% 
   nrow()
+
 us_only %>% 
   filter(is.na(ad_delivery_duration_day)
          ) %>% 
   select(adid) %>% 
   distinct() %>% 
   nrow()
-
 
 
 negative_ad_duration <-
@@ -862,11 +850,11 @@ us_only_skim <-
 
 # us_only_skim
 
+
 vars_abv_pt5_missing <-
   us_only_skim %>% 
   filter(complete_rate > 0.05) %>% 
   pull(skim_variable)
-
 
 us_only %>% 
   select(-one_of(vars_abv_pt5_missing)
@@ -882,8 +870,6 @@ us_only_vars_abv_pt5_missing <-
 
 str(us_only_vars_abv_pt5_missing)
 skim(us_only_vars_abv_pt5_missing)
-
-
 # View(us_only_vars_abv_pt5_missing %>% 
 #        head(1000)
 #      )
@@ -897,19 +883,19 @@ rm(negative_ad_duration, us_only_skim, vars_abv_pt5_missing)
 
 many_impressions <-
   us_only_vars_abv_pt5_missing %>% 
-  arrange(desc(impressions)) %>% 
+  arrange(desc(impressions_per_day)) %>% 
   select(-dplyr::contains("_long")
          ) %>% 
   distinct() %>% 
   head(100)
 
 
-write_csv(x = many_impressions,
-          path = paste0(wd,
-                        "/Data/Interim/",
-                        "many_impressions.csv"
-                        )
-          )
+# write_csv(x = many_impressions,
+#           path = paste0(wd,
+#                         "/Data/Interim/",
+#                         "many_impressions.csv"
+#                         )
+#           )
 
 
 View(many_impressions)
@@ -1365,7 +1351,7 @@ View(many_impressions)
 # #               ) %>%
 # #        head(100)
 # #      )
-rm(data_20182019_long)
+# rm(data_20182019_long)
 ```
   
 
@@ -1437,6 +1423,5 @@ rm(data_20182019_long)
 # cnt_within_chr_cols
 # # cnt_within_chr_cols$interests_long
 ```
-
 
 
