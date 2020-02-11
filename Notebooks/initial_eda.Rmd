@@ -220,7 +220,11 @@ data_20182019 <-
                                          end = enddate
                                          ),
          ad_delivery_duration_sec = ad_delivery_interval %>% int_length(),
-         ad_delivery_duration_day = ad_delivery_interval / ddays(x = 1), 
+         ad_delivery_duration_day = ad_delivery_interval / ddays(x = 1),
+         impressions_per_USD = if_else(spend > 0,
+                                       impressions / spend,
+                                       as.numeric(NA)
+                                       ),
          impressions_per_day = impressions / ad_delivery_duration_day
          ) %>% 
   select(-ad_delivery_interval,
@@ -901,6 +905,60 @@ many_impressions <-
 View(many_impressions)
 
 ```
+
+
+```{r}
+
+View(us_only_vars_abv_pt5_missing %>% 
+       arrange(spend) %>% 
+       head(1000)
+     )
+
+us_only_vars_abv_pt5_missing %>% skim(spend)
+
+```
+
+
+
+
+
+
+```{r}
+
+library("tmap")
+library("tidycensus")
+
+```
+
+
+
+```{r}
+
+v17 <- load_variables(2017, "acs5", cache = TRUE)
+
+View(v17)
+
+```
+
+
+
+```{r}
+
+edu_dc <-
+  get_acs(geography = "tract",
+          state = "DC",
+          variables = c(education = "B99151_001",
+                        med_house_income = "B19013_001",
+                        population = "H0100001"
+                        ), 
+          year = 2017,
+          geometry = TRUE
+          )
+
+dc
+
+```
+
 
 
 
