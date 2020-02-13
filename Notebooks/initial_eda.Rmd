@@ -1038,7 +1038,7 @@ write_csv(x = many_impressions,
                         )
           )
 
-View(many_impressions)
+# View(many_impressions)
 
 ```
 
@@ -1046,12 +1046,12 @@ View(many_impressions)
 
 ```{r}
 
-View(us_only_vars_abv_pt5_missing %>% 
-       arrange(spend) %>% 
-       head(1000)
-     )
-
-us_only_vars_abv_pt5_missing %>% skim(spend)
+# View(us_only_vars_abv_pt5_missing %>% 
+#        arrange(spend) %>% 
+#        head(1000)
+#      )
+# 
+# us_only_vars_abv_pt5_missing %>% skim(spend)
 
 ```
 
@@ -1061,7 +1061,7 @@ us_only_vars_abv_pt5_missing %>% skim(spend)
 
 v17 <- load_variables(2017, "acs5", cache = TRUE)
 
-View(v17)
+# View(v17)
 
 ```
 
@@ -1264,10 +1264,10 @@ tm_shape(zips_with_ads) +
           palette = sf.colors(5)
           )
 
-tm_shape(zips_with_ads) +
-  tm_fill("estimate_bachelor_plus_pct",
-          palette = sf.colors(5)
-          )
+# tm_shape(zips_with_ads) +
+#   tm_fill("estimate_bachelor_plus_pct",
+#           palette = sf.colors(5)
+#           )
 
 ```
 
