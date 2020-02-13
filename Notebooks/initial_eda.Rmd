@@ -18,9 +18,12 @@ output:
 
 Install needed packages.
 ```{r message=FALSE, warning=FALSE}
+
 # clear out anything in the working environment
 rm(list = ls())
 # .rs.restartR()
+
+
 ##################################
 ##  Install Packages from CRAN  ##
 ##################################
@@ -44,42 +47,68 @@ list_of_packages <-
     "tictoc",
     "furrr",
     "doParallel",
-    "rlang" #,
+    "rlang",
+    "tmap",
+    "tidycensus",
+    "sf"#,
     # "tsibble",
     # "feasts",
     # "e1071"
     )
+
 new_packages <-
   list_of_packages[!(list_of_packages %in% installed.packages()[ , "Package"]
                      )
                    ]
+
 if(length(new_packages)) install.packages(new_packages)
+
+
 ####################################
 ##  Install Packages from GitHub  ##
 ####################################
+
 if(!require(devtools)
    ) {install.packages("devtools")}
+
 if(!("BRRR" %in% installed.packages()[, "Package"]
      )
    ) {devtools::install_github("brooke-watson/BRRR")}
+
+
 rm(list = ls(pattern = "packages"))
+
 ```
 
 
 Load the relevant libraries.
 ```{r message=FALSE, warning=FALSE}
+
+
 # data munging
 library("tidyverse")      # general data manipulation
 library("data.table")     # general data manipulation
 library("lubridate")      # date specific munging
 # library("broom")          # cleanly obtain results from models
+
+
 # viz
 library("plotly")         # interactive plots
 library("scales")         # prettier scales
+
+
 # modeling
 library("rsample")        # sampling and modeling infrastructure
 library("recipes")        # modeling infrastructure
 # library("caret")          # modeling infrastructure
+
+
+# spatial data
+library("tmap")
+library("tidycensus")
+library("sf")
+
+
 # other
 library("skimr")          # inspect data
 library("naniar")         # inspect missingness of data
@@ -89,35 +118,48 @@ library("rlang")          # writing functions
 # library("tsibble")        # time series
 # library("feasts")         # time series
 library("BRRR")           # hip-hop notifications of when code finishes :- )
+
 ```
   
     
 Session Info.
 ```{r}
+
 sessionInfo()
+
 ```
 
 
 Play this .wav file when there is an error
 ```{r include = FALSE}
+
 options(error = function() {skrrrahh("khaled2")})
+
 ```
   
 
   Setup the root directory.
 ```{r setup, include=FALSE}
+
 require("knitr")
+
+
 # # Use when running from AWS
 # # opts_knit$set(root.dir = "/home/rstudio/Dropbox/_AWS/snap_political_ads")
+
+
 # # Use when running from laptop
 opts_knit$set(root.dir = "/Users/mdturse/Desktop/Analytics/snap_political_ads")
+
 ```
   
     
   Setting `wd` as the working directory.
 ```{r}
 wd <- getwd()
+
 wd
+
 ```
 
 
@@ -125,12 +167,17 @@ wd
   
   Unzip and read the .csv files.
 ```{r}
+
 # url examples
 # https://storage.googleapis.com/ad-manager-political-ads-dump/political/2018/PoliticalAds.zip
 # https://storage.googleapis.com/ad-manager-political-ads-dump/political/2019/PoliticalAds.zip
-years <- c("2018", "2019")
+
+
+years <- c("2018", "2019", "2020")
 url_prefix <- "https://storage.googleapis.com/ad-manager-political-ads-dump/political/"
 url_suffix <- "/PoliticalAds.zip"
+
+
 for(i in years) {
   # create a temporary directory
   td = tempdir()
@@ -159,21 +206,67 @@ for(i in years) {
   # path_readme = file.path(td, name_readme)
   
   assign(x = paste0("data_", i, "_raw"),
-         value = read_csv(file = path_csv)
+         value = read_csv(file = path_csv,
+                          col_types = cols(ADID = col_character(),
+                                           CreativeUrl = col_character(),
+                                           `Currency Code` = col_character(),
+                                           Spend = col_double(),
+                                           Impressions = col_double(),
+                                           # StartDate = col_datetime(format = ""),
+                                           # EndDate = col_datetime(format = ""),
+                                           StartDate = col_character(),
+                                           EndDate = col_character(),
+                                           OrganizationName = col_character(),
+                                           BillingAddress = col_character(),
+                                           CandidateBallotInformation = col_character(),
+                                           PayingAdvertiserName = col_character(),
+                                           Gender = col_character(),
+                                           AgeBracket = col_character(),
+                                           CountryCode = col_character(),
+                                           `Regions (Included)` = col_character(),
+                                           `Regions (Excluded)` = col_character(),
+                                           `Electoral Districts (Included)` = col_character(),
+                                           `Electoral Districts (Excluded)` = col_character(),
+                                           `Radius Targeting (Included)` = col_character(),
+                                           `Radius Targeting (Excluded)` = col_character(),
+                                           `Metros (Included)` = col_character(),
+                                           `Metros (Excluded)` = col_character(),
+                                           `Postal Codes (Included)` = col_character(),
+                                           `Postal Codes (Excluded)` = col_character(),
+                                           `Location Categories (Included)` = col_character(),
+                                           `Location Categories (Excluded)` = col_character(),
+                                           Interests = col_character(),
+                                           OsType = col_character(),
+                                           Segments = col_character(),
+                                           Language = col_character(),
+                                           AdvancedDemographics = col_character(),
+                                           `Targeting Connection Type` = col_character(),
+                                           `Targeting Carrier (ISP)` = col_character(),
+                                           CreativeProperties = col_character()
+                                           )
+                          )
          )
-  }
+}
+
+
 message("data_2018_raw")
 glimpse(data_2018_raw)
 message("data_2019_raw")
 glimpse(data_2019_raw)
+message("data_2020_raw")
+glimpse(data_2020_raw)
+
+
 rm(years, i, td, tf, path_csv)
 rm(list = ls(pattern = "url_"))
 rm(list = ls(pattern = "name_"))
+
 ```
   
     
   Update variable names.
 ```{r}
+
 data_2018 <-
   data_2018_raw %>% 
   rename_all(~str_replace_all(.x,
@@ -182,6 +275,7 @@ data_2018 <-
                               )
              ) %>% 
   rename_all(tolower)
+
 data_2019 <-
   data_2019_raw %>% 
   rename_all(~str_replace_all(.x,
@@ -190,29 +284,55 @@ data_2019 <-
                               )
              ) %>% 
   rename_all(tolower)
+
+data_2020 <-
+  data_2020_raw %>% 
+  rename_all(~str_replace_all(.x,
+                              "\\W",
+                              "_"
+                              )
+             ) %>% 
+  rename_all(tolower)
+
+
 message("data_2018")
 glimpse(data_2018)
 message("data_2019")
 glimpse(data_2019)
+message("data_2020")
+glimpse(data_2020)
+
+
 rm(list = ls(pattern = "_raw"))
+
 ```
   
     
   Compare if the column names are the same
 ```{r}
+
 ncol(data_2018)
 ncol(data_2019)
+ncol(data_2020)
+
 setdiff(colnames(data_2018),
         colnames(data_2019)
         )
+
+setdiff(colnames(data_2018),
+        colnames(data_2020)
+        )
+
 ```
   
     
   Bind the rows to create a single dataset.
 ```{r}
+
 data_20182019 <-
   bind_rows(data_2018 %>% mutate(data_yr = 2018),
-            data_2019 %>% mutate(data_yr = 2019)
+            data_2019 %>% mutate(data_yr = 2019),
+            data_2020 %>% mutate(data_yr = 2020)
             ) %>% 
   mutate(startdate = as_datetime(startdate),
          enddate = as_datetime(enddate),
@@ -237,21 +357,25 @@ data_20182019 <-
 #                         "data_20182019.rds"
 #                         )
 #           )
-glimpse(data_20182019)
-data_20182019 %>% 
-  mutate_if(is.character, factor) %>% 
-  mutate_if(is.factor, factor) %>% 
-  skim()
 
+glimpse(data_20182019)
+
+data_20182019 %>%
+  mutate_if(is.character, factor) %>%
+  mutate_if(is.factor, factor) %>%
+  skim()
 skrrrahh()
 
 # View(data_20182019 %>% filter(spend <= 0))
 # View(data_20182019 %>% filter(ad_delivery_duration_day <= 0))
 # View(data_20182019 %>% filter(is.na(enddate)))
+
+
 ids <-
   data_2018 %>% 
   head(10) %>% 
   pull(adid)
+
 # View(data_2018 %>% 
 #        filter(adid %in% ids) %>% 
 #        select(adid,
@@ -269,7 +393,10 @@ ids <-
 #               ) %>% 
 #        arrange(adid)
 #      )
-rm(data_2018, data_2019)
+
+
+rm(data_2018, data_2019, data_2020)
+
 ```
   
     
@@ -421,10 +548,7 @@ data_20182019_long <-
   # tic("adid")
   setkey(adid)
 toc()
-
 skrrrahh()
-
-
 # toc()
 # toc()
 # toc()
@@ -688,19 +812,22 @@ unlist_location_categories__excluded__long <-
                            ),
                       by = list(adid)
        ]
+
 # toc()
 end <- proc.time() - start
 end
-
 skrrrahh()
-
 # glimpse(data_20182019_long)
+
+
 rm(start, end)
+
 ```
   
     
   Now join all the columns to create a singular "tidy" dataset.
 ```{r}
+
 # tic()
 start <- proc.time()
 join_unlisted_data <-
@@ -711,83 +838,87 @@ join_unlisted_data <-
         by = "adid",
         all = TRUE,
         allow.cartesian = TRUE
-            ) %>% 
+        ) %>% 
   merge(y = unlist_language_long,
         by = "adid",
         all = TRUE,
         allow.cartesian = TRUE
-            ) %>% 
+        ) %>% 
   merge(y = unlist_advanced_demographics_long,
         by = "adid",
         all = TRUE,
         allow.cartesian = TRUE
-            ) %>% 
+        ) %>% 
   merge(y = unlist_regions__included__long,
         by = "adid",
         all = TRUE,
         allow.cartesian = TRUE
-            ) %>% 
+        ) %>% 
   merge(y = unlist_regions__excluded__long,
         by = "adid",
         all = TRUE,
         allow.cartesian = TRUE
-            ) %>% 
+        ) %>% 
   merge(y = unlist_electoral_districts__included__long,
         by = "adid",
         all = TRUE,
         allow.cartesian = TRUE
-            ) %>% 
+        ) %>% 
   merge(y = unlist_electoral_districts__excluded__long,
         by = "adid",
         all = TRUE,
         allow.cartesian = TRUE
-            ) %>% 
+        ) %>% 
   merge(y = unlist_metros__included__long,
         by = "adid",
         all = TRUE,
         allow.cartesian = TRUE
-            ) %>% 
+        ) %>% 
   merge(y = unlist_metros__excluded__long,
         by = "adid",
         all = TRUE,
         allow.cartesian = TRUE
-            ) %>% 
+        ) %>% 
   merge(y = unlist_postal_codes__included__long,
         by = "adid",
         all = TRUE,
         allow.cartesian = TRUE
-            ) %>% 
+        ) %>% 
   merge(y = unlist_postal_codes__excluded__long,
         by = "adid",
         all = TRUE,
         allow.cartesian = TRUE
-            ) %>% 
+        ) %>% 
   merge(y = unlist_location_categories__included__long,
         by = "adid",
         all = TRUE,
         allow.cartesian = TRUE
-            ) %>% 
+        ) %>% 
   merge(y = unlist_location_categories__excluded__long,
         by = "adid",
         all = TRUE,
         allow.cartesian = TRUE
-            ) %>% 
+        ) %>% 
   mutate_if(is.character, factor) %>% 
   mutate_if(is.factor, factor) %>% 
   as.data.table() %>% 
   setkey(adid)
 # toc()
+
 end <- proc.time() - start
 end
-
 skrrrahh()
   
 class(join_unlisted_data)
 glimpse(join_unlisted_data)
 skim(join_unlisted_data)
+
 # View(join_unlisted_data %>% head(1000))
+
+
 rm(list = ls(pattern = "unlist_"))
 rm(start, end)
+
 ```
 
 
@@ -800,6 +931,7 @@ us_only <-
   filter(countrycode == "united states")
 
 # skim(us_only$ad_delivery_duration_day)
+
 
 data_20182019 %>% count(adid) %>% filter(n != 1)
 data_20182019_long %>% count(adid) %>% filter(n != 1)
@@ -842,46 +974,51 @@ negative_ad_duration <-
 #        distinct()
 #      )
 
-
-us_only_skim <-
+us_only_no_duration_neg <-
   us_only %>% 
   filter(!(adid %in% negative_ad_duration)
-         ) %>% 
+         ) #%>% 
   # select(adid) %>% 
   # distinct() %>% 
   # nrow()
+
+us_only_no_duration_neg_skim <-
+  us_only_no_duration_neg %>% 
   skim()
 
 # us_only_skim
 
 
 vars_abv_pt5_missing <-
-  us_only_skim %>% 
+  us_only_no_duration_neg_skim %>% 
   filter(complete_rate > 0.05) %>% 
   pull(skim_variable)
 
-us_only %>% 
+us_only_no_duration_neg %>% 
   select(-one_of(vars_abv_pt5_missing)
          ) %>% 
   colnames()
 
 us_only_vars_abv_pt5_missing <-
-  us_only %>% 
+  us_only_no_duration_neg %>% 
   select(one_of(vars_abv_pt5_missing)
          ) %>% 
+  distinct() %>% 
   mutate_if(is.factor, factor)
-
 
 str(us_only_vars_abv_pt5_missing)
 skim(us_only_vars_abv_pt5_missing)
+
 # View(us_only_vars_abv_pt5_missing %>% 
 #        head(1000)
 #      )
 
 
-rm(negative_ad_duration, us_only_skim, vars_abv_pt5_missing)
+rm(negative_ad_duration, us_only_no_duration_neg, vars_abv_pt5_missing)
 
 ```
+
+
 
 ```{r}
 
@@ -893,18 +1030,18 @@ many_impressions <-
   distinct() %>% 
   head(100)
 
-
-# write_csv(x = many_impressions,
-#           path = paste0(wd,
-#                         "/Data/Interim/",
-#                         "many_impressions.csv"
-#                         )
-#           )
-
+write_csv(x = many_impressions,
+          path = paste0(wd,
+                        # "/Data/Interim/",
+                        "/",
+                        "many_impressions.csv"
+                        )
+          )
 
 View(many_impressions)
 
 ```
+
 
 
 ```{r}
@@ -915,18 +1052,6 @@ View(us_only_vars_abv_pt5_missing %>%
      )
 
 us_only_vars_abv_pt5_missing %>% skim(spend)
-
-```
-
-
-
-
-
-
-```{r}
-
-library("tmap")
-library("tidycensus")
 
 ```
 
@@ -944,18 +1069,205 @@ View(v17)
 
 ```{r}
 
-edu_dc <-
-  get_acs(geography = "tract",
-          state = "DC",
-          variables = c(education = "B99151_001",
-                        med_house_income = "B19013_001",
-                        population = "H0100001"
-                        ), 
+# edu_dc <-
+#   get_acs(geography = "tract",
+#           state = "DC",
+#           # variables = c(education = "B99151_001",
+#           #               med_house_income = "B19013_001",
+#           #               population = "H0100001"
+#           #               ),
+#           # variables = c("B99151_001",
+#           #               "B19013_001",
+#           #               "H0100001"
+#           #               ),
+#           variables = "B19013_001",
+#           year = 2017,
+#           geometry = TRUE,
+#           key = Sys.getenv("CENSUS_KEY")
+#           )
+# 
+# edu_dc
+# 
+# 
+# edu_dc2 <-
+#   get_acs(geography = "tract",
+#           state = "DC",
+#           # variables = c(education = "B99151_001",
+#           #               med_house_income = "B19013_001",
+#           #               population = "H0100001"
+#           #               ),
+#           # variables = c("B99151_001",
+#           #               "B19013_001",
+#           #               "H0100001"
+#           #               ),
+#           variables = "B99151_001",
+#           year = 2017,
+#           geometry = FALSE,
+#           key = Sys.getenv("CENSUS_KEY")
+#           )
+# 
+# edu_dc2
+
+
+census_all_data_zcta <-
+  get_acs(# geography = "tract",
+          geography = "zcta",
+          # state = "DC",
+          # variables = c(education = "B99151_001",
+          #               med_house_income = "B19013_001",
+          #               population = "H0100001"
+          #               ),
+          # variables = c("B99151_001",
+          #               "B19013_001",
+          #               "H0100001"
+          #               ),
+          variables = c(population = "B01001_001",
+                        bachelor_plus = "B99151_001",
+                        med_house_income = "B19013_001"
+                        ),
           year = 2017,
-          geometry = TRUE
+          geometry = TRUE,
+          key = Sys.getenv("CENSUS_API_KEY")#,
+          # options(tigris_use_cache = TRUE)
           )
 
-dc
+# usethis::edit_r_environ()
+
+census_all_data_zcta
+# census_all_data_zcta[ , c("GEOID", "variable")] %>% count(GEOID, variable, sort = TRUE)
+
+```
+
+
+
+```{r}
+
+census_all_data_zcta_wide <-
+  census_all_data_zcta %>% 
+  as.data.frame() %>% 
+  select(-geometry) %>% 
+  pivot_wider(names_from = variable,
+              values_from = c(estimate, moe)
+              ) %>% 
+  mutate(estimate_bachelor_plus_pct = estimate_bachelor_plus / estimate_population)
+  # sf::spread.sf(key = variable,
+  #           value = estimate
+  #           ) 
+
+glimpse(census_all_data_zcta_wide)
+skim(census_all_data_zcta_wide)
+census_all_data_zcta_wide
+
+```
+
+
+
+```{r}
+
+ad_cnt_by_zip <-
+  us_only_vars_abv_pt5_missing %>% 
+  filter(!is.na(postal_codes__included__long)
+         ) %>% 
+  count(postal_codes__included__long,
+        name = "pol_ad_cnt",
+        sort = TRUE
+        ) %>% 
+  mutate(postal_codes__included__long = as.character(postal_codes__included__long)
+         )
+
+geoid_geom <- census_all_data_zcta[ , c("GEOID", "geometry")]
+
+
+census_wide_with_geom <-
+  geoid_geom %>% 
+  left_join(y = census_all_data_zcta_wide,
+            by = "GEOID"
+            ) %>% 
+  left_join(y = ad_cnt_by_zip,
+            by = c("GEOID" = "postal_codes__included__long")
+            )
+  
+
+glimpse(census_wide_with_geom)
+
+```
+
+
+
+```{r}
+
+twos <-
+  census_wide_with_geom %>% 
+  filter(str_detect(string = GEOID,
+                    pattern = "200\\d{2}"
+                    )
+         )
+
+
+plot(twos["estimate_med_house_income"])
+plot(twos["estimate_bachelor_plus_pct"])
+
+
+twos %>% 
+  ggplot() +
+  geom_sf(aes(fill = estimate_med_house_income)
+          ) +
+  theme_minimal()
+
+census_all_data_zcta %>% 
+  filter(str_detect(string = GEOID,
+                    pattern = "200\\d{2}"
+                    )
+         ) %>% 
+  ggplot() +
+  geom_sf(aes(fill = estimate)
+          ) +
+  facet_wrap(~ variable
+             # scales = "free"
+             # ncol = 1
+             ) +
+  theme_minimal()
+
+
+## tmap mode set to interactive viewing
+tmap_mode("view")
+
+tm_shape(twos) +
+  tm_fill("estimate_med_house_income",
+          palette = sf.colors(5)
+          )
+
+tm_shape(twos) +
+  tm_fill("estimate_bachelor_plus_pct",
+          palette = sf.colors(5)
+          )
+
+```
+
+
+```{r}
+
+zips_with_ads <-
+  census_wide_with_geom %>% 
+  filter(!is.na(pol_ad_cnt)
+         )
+
+glimpse(zips_with_ads)
+
+```
+
+
+```{r}
+
+tm_shape(zips_with_ads) +
+  tm_fill("pol_ad_cnt",
+          palette = sf.colors(5)
+          )
+
+tm_shape(zips_with_ads) +
+  tm_fill("estimate_bachelor_plus_pct",
+          palette = sf.colors(5)
+          )
 
 ```
 
@@ -1481,5 +1793,6 @@ dc
 # cnt_within_chr_cols
 # # cnt_within_chr_cols$interests_long
 ```
+
 
 
