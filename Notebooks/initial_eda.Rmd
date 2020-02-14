@@ -16,12 +16,16 @@ output:
 
 ## Setup (This is all something I would do at the beginning of each .Rmd file)  
 
-Install needed packages.
-```{r message=FALSE, warning=FALSE}
+```{r}
 
 # clear out anything in the working environment
 rm(list = ls())
 # .rs.restartR()
+
+```
+
+Install needed packages.
+```{r message=FALSE, warning=FALSE}
 
 
 ##################################
@@ -31,6 +35,7 @@ list_of_packages <-
   c("tidyverse",
     "data.table",
     "lubridate",
+    "readxl",
     # "broom",
     "plotly",
     "scales",
@@ -89,6 +94,7 @@ Load the relevant libraries.
 library("tidyverse")      # general data manipulation
 library("data.table")     # general data manipulation
 library("lubridate")      # date specific munging
+library("readxl")         # read in .xls(x) data
 # library("broom")          # cleanly obtain results from models
 
 
@@ -148,14 +154,24 @@ require("knitr")
 # # opts_knit$set(root.dir = "/home/rstudio/Dropbox/_AWS/snap_political_ads")
 
 
-# # Use when running from laptop
-opts_knit$set(root.dir = "/Users/mdturse/Desktop/Analytics/snap_political_ads")
+
+if (str_detect(string = getwd(),
+               pattern = "mdturse"
+               )
+    ) {
+  # Use when running from laptop
+  opts_knit$set(root.dir = "/Users/mdturse/Desktop/Analytics/snap_political_ads")
+  } else {
+    # Use when running from Sparkfund laptop
+    opts_knit$set(root.dir = "/Users/danielturse/Desktop/Projects/snap_political_ads")
+  }
 
 ```
   
     
   Setting `wd` as the working directory.
 ```{r}
+
 wd <- getwd()
 
 wd
@@ -922,6 +938,74 @@ rm(start, end)
 ```
 
 
+## Create data to crosswalk Zip to State Name
+
+Obtain the Zip to Tract file
+```{r}
+
+zip_to_tract_raw <-
+  read_excel(path = paste0(wd,
+                           "/Data/Raw/",
+                           "ZIP_TRACT_122019.xlsx"
+                           ),
+             col_types = "text"
+             # col_types = c("text", "text", "numeric", "numeric", "numeric", "numeric")
+             )
+
+glimpse(zip_to_tract_raw)
+
+```
+
+Munge
+```{r}
+
+zip_to_fips <-
+  zip_to_tract_raw %>% 
+  rename_all(tolower) %>% 
+  select(zip,
+         tract
+         ) %>% 
+  mutate(fips = str_sub(string = tract, start = 1, end = 2)
+         ) %>% 
+  select(zip,
+         fips
+         ) %>% 
+  distinct()
+
+
+glimpse(zip_to_fips)
+
+zip_to_fips %>% count(zip, fips, sort = TRUE)
+
+
+rm(zip_to_tract_raw)
+
+```
+
+Get state.
+```{r}
+
+zip_to_state <-
+  zip_to_fips %>% 
+  left_join(y = tidycensus::fips_codes %>% 
+              select(state_code,
+                     state_name
+                     ),
+            by = c("fips" = "state_code")
+            ) %>% 
+  distinct() %>% 
+  as.data.table() %>% 
+  setkey(zip)
+
+str(zip_to_state)
+
+
+rm(zip_to_fips)
+
+```
+
+
+
 ```{r}
 
 join_unlisted_data %>% count(countrycode, sort = TRUE)
@@ -1004,12 +1088,28 @@ us_only_vars_abv_pt5_missing <-
   select(one_of(vars_abv_pt5_missing)
          ) %>% 
   distinct() %>% 
+  mutate_at(vars(contains("postal_codes__")
+                 ),
+            as.character
+            ) %>% 
+  left_join(y = zip_to_state %>% select(zip, state_name),
+            by = c("postal_codes__included__long" = "zip")
+            ) %>%
+  left_join(y = zip_to_state %>% select(zip, state_name),
+            by = c("postal_codes__excluded__long" = "zip"),
+            suffix = c("incl", "excl")
+            ) %>%
+  mutate_if(is.character, factor) %>%
   mutate_if(is.factor, factor)
+  # as.data.table() %>% 
+  # setkey(postal_codes__included__long,
+  #        postal_codes__excluded__long
+  #        )
 
 str(us_only_vars_abv_pt5_missing)
 skim(us_only_vars_abv_pt5_missing)
 
-# View(us_only_vars_abv_pt5_missing %>% 
+# View(us_only_vars_abv_pt5_missing %>%
 #        head(1000)
 #      )
 
@@ -1032,8 +1132,8 @@ many_impressions <-
 
 write_csv(x = many_impressions,
           path = paste0(wd,
-                        # "/Data/Interim/",
-                        "/",
+                        "/Data/Interim/",
+                        # "/",
                         "many_impressions.csv"
                         )
           )
@@ -1272,6 +1372,14 @@ tm_shape(zips_with_ads) +
 ```
 
 
+```{r}
+
+# us_only_vars_abv_pt5_missing %>% 
+#   filter(postal_codes__included__long %in% c("20001", "20010")
+#          ) %>% 
+#   View()
+
+```
 
 
 ```{r}
