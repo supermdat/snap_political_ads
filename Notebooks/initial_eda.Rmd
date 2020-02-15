@@ -53,6 +53,7 @@ list_of_packages <-
     "furrr",
     "doParallel",
     "rlang",
+    "glue",
     "tmap",
     "tidycensus",
     "sf"#,
@@ -121,6 +122,7 @@ library("naniar")         # inspect missingness of data
 library("tictoc")         # easy runtime calcs
 library("furrr")          # run `purrr` in parallel
 library("rlang")          # writing functions
+library("glue")           # writing functions
 # library("tsibble")        # time series
 # library("feasts")         # time series
 library("BRRR")           # hip-hop notifications of when code finishes :- )
@@ -352,6 +354,18 @@ data_20182019 <-
             ) %>% 
   mutate(startdate = as_datetime(startdate),
          enddate = as_datetime(enddate),
+         start_yrmth = floor_date(x = startdate,
+                                  unit = "months"
+                                  ),
+         start_yrmthwk = floor_date(x = startdate,
+                                    unit = "weeks"
+                                    ),
+         end_yrmth = floor_date(x = enddate,
+                                unit = "months"
+                                ),
+         end_yrmthwk = floor_date(x = enddate,
+                                  unit = "weeks"
+                                  ),
          ad_delivery_interval = interval(start = startdate,
                                          end = enddate
                                          ),
@@ -735,8 +749,10 @@ glimpse(data_20182019_long)
     
   Unlist the list-colums...unfortunately, doing this one-by-one (i.e. **manually**) with `data.table` as `tidyr::unnest` was too slow and creating a function with `data.table` was not working right. **I should revisit writing the function later.**
 ```{r}
+
 # tic()
 start <- proc.time()
+
 unlist_interests_long <-
   data_20182019_long[ ,
                       list(interests_long = as.character(unlist(interests_long)
@@ -744,6 +760,7 @@ unlist_interests_long <-
                            ),
                       by = list(adid)
                       ]
+
 unlist_language_long <-
   data_20182019_long[ ,
                       list(language_long = as.character(unlist(language_long)
@@ -751,6 +768,7 @@ unlist_language_long <-
                            ),
                       by = list(adid)
                       ]
+
 unlist_advanced_demographics_long <-
   data_20182019_long[ ,
                       list(advanced_demographics_long = as.character(unlist(advanced_demographics_long)
@@ -758,6 +776,7 @@ unlist_advanced_demographics_long <-
                            ),
                       by = list(adid)
                       ]
+
 unlist_regions__included__long <-
   data_20182019_long[ ,
                       list(regions__included__long = as.character(unlist(regions__included__long)
@@ -765,6 +784,7 @@ unlist_regions__included__long <-
                            ),
                       by = list(adid)
                       ]
+
 unlist_regions__excluded__long <-
   data_20182019_long[ ,
                       list(regions__excluded__long = as.character(unlist(regions__excluded__long)
@@ -772,6 +792,7 @@ unlist_regions__excluded__long <-
                            ),
                       by = list(adid)
                       ]
+
 unlist_electoral_districts__included__long <-
   data_20182019_long[ ,
                       list(electoral_districts__included__long = as.character(unlist(electoral_districts__included__long)
@@ -779,6 +800,7 @@ unlist_electoral_districts__included__long <-
                            ),
                       by = list(adid)
                       ]
+
 unlist_electoral_districts__excluded__long <-
   data_20182019_long[ ,
                       list(electoral_districts__excluded__long = as.character(unlist(electoral_districts__excluded__long)
@@ -786,6 +808,7 @@ unlist_electoral_districts__excluded__long <-
                            ),
                       by = list(adid)
                       ]
+
 unlist_metros__included__long <-
   data_20182019_long[ ,
                       list(metros__included__long = as.character(unlist(metros__included__long)
@@ -793,6 +816,7 @@ unlist_metros__included__long <-
                            ),
                       by = list(adid)
                       ]
+
 unlist_metros__excluded__long <-
   data_20182019_long[ ,
                       list(metros__excluded__long = as.character(unlist(metros__excluded__long)
@@ -800,6 +824,7 @@ unlist_metros__excluded__long <-
                            ),
                       by = list(adid)
                       ]
+
 unlist_postal_codes__included__long <-
   data_20182019_long[ ,
                       list(postal_codes__included__long = as.character(unlist(postal_codes__included__long)
@@ -807,6 +832,7 @@ unlist_postal_codes__included__long <-
                            ),
                       by = list(adid)
                       ]
+
 unlist_postal_codes__excluded__long <-
   data_20182019_long[ ,
                       list(postal_codes__excluded__long = as.character(unlist(postal_codes__excluded__long)
@@ -814,6 +840,7 @@ unlist_postal_codes__excluded__long <-
                            ),
                       by = list(adid)
                       ]
+
 unlist_location_categories__included__long <-
   data_20182019_long[ ,
                       list(location_categories__included__long = as.character(unlist(location_categories__included__long)
@@ -827,7 +854,7 @@ unlist_location_categories__excluded__long <-
                                                                               )
                            ),
                       by = list(adid)
-       ]
+                      ]
 
 # toc()
 end <- proc.time() - start
@@ -846,6 +873,7 @@ rm(start, end)
 
 # tic()
 start <- proc.time()
+
 join_unlisted_data <-
   data_20182019_long %>% 
   select(adid:impressions_per_day) %>% 
@@ -1117,6 +1145,127 @@ skim(us_only_vars_abv_pt5_missing)
 rm(negative_ad_duration, us_only_no_duration_neg, vars_abv_pt5_missing)
 
 ```
+
+
+```{r}
+
+# glimpse(us_only_vars_abv_pt5_missing)
+
+func_data_line_plot <-
+  function(data, 
+           grp_var, 
+           zip_cnt = FALSE, 
+           time_var = NULL, 
+           cnt_cutoff
+           ) {
+    base =
+      if(zip_cnt) {
+        data
+        } else {
+          data %>% 
+            select_at(vars(-contains("_long")
+                           )
+                      ) %>% 
+            distinct()
+        }
+      # data %>% 
+      # select_at(vars(-contains("_long")
+      #                )
+      #           ) %>% 
+      # distinct()
+    
+    data_grouped =
+      if(missing(time_var)
+         ) {
+        base %>%
+          group_by({{grp_var}})
+        } else {
+          base %>%
+            group_by({{grp_var}},
+                     {{time_var}}
+                     )
+      }
+
+    data_cnts =
+      data_grouped %>%
+      summarise(cnt = n(),
+                spend_min = min(spend, na.rm = TRUE),
+                spend_max = max(spend, nna.rm = TRUE),
+                spend_med = median(spend, na.rm = TRUE),
+                impressions_min = min(impressions, na.rm = TRUE),
+                impressions_max = max(impressions, nna.rm = TRUE),
+                impressions_med = median(impressions, na.rm = TRUE)
+                )
+
+    top_advertisers =
+      data_cnts %>%
+      filter(cnt >= cnt_cutoff) %>%
+      pull({{grp_var}})
+    
+    data_cnts =
+      data_cnts %>% 
+      filter({{grp_var}} %in% top_advertisers)
+
+    plot =
+      if(missing(time_var)
+         ) {
+        (data_cnts %>% 
+           ggplot(aes(x = fct_reorder({{grp_var}},
+                                      cnt
+                                      ),
+                      y = cnt
+                      )
+           ) +
+           geom_col(na.rm = TRUE) +
+           coord_flip() +
+           theme_minimal() +
+           labs(x = paste0(quo_get_expr(quo({{grp_var}})
+                                        )
+                           )
+                ) +
+           NULL
+         ) %>%
+          ggplotly()
+        } else {
+          (data_cnts %>% 
+             ggplot(aes(x = {{time_var}},
+                        y = cnt,
+                        color = {{grp_var}}
+                        )
+                    ) +
+             geom_line(na.rm = TRUE) +
+             theme_minimal() +
+             NULL
+           ) %>% 
+            ggplotly()
+        }
+    
+    # return(data_cnts)
+    
+    return(list(data = data_cnts,
+                plot = plot
+                )
+           )
+    
+    }
+
+
+test <-
+  us_only_vars_abv_pt5_missing %>% 
+  func_data_line_plot(
+                      # grp_var = payingadvertisername,
+                      grp_var = state_nameincl,
+                      # grp_var = postal_codes__included__long,
+                      # zip_cnt = TRUE,
+                      time_var = start_yrmth,
+                      cnt_cutoff = 10
+                      )
+
+# str(test)
+test
+
+```
+
 
 
 
