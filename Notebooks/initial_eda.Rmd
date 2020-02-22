@@ -469,7 +469,11 @@ rm(data_2018, data_2019, data_2020)
 tic()
 data_20182019_long <-
   data_20182019 %>% 
-  mutate(interests_long = str_split(interests,
+  mutate(payingadvertisername = payingadvertisername %>% 
+           str_squish() %>% 
+           str_trim(side = "both") %>% 
+           tolower(),
+         interests_long = str_split(interests,
                                     ",",
                                     ),
          language_long = str_split(language,
@@ -1151,12 +1155,11 @@ rm(negative_ad_duration, us_only_no_duration_neg, vars_abv_pt5_missing)
 
 # glimpse(us_only_vars_abv_pt5_missing)
 
-func_data_line_plot <-
+func_summary_stats <-
   function(data, 
            grp_var, 
            zip_cnt = FALSE, 
-           time_var = NULL, 
-           cnt_cutoff
+           time_var = NULL
            ) {
     base =
       if(zip_cnt) {
@@ -1167,27 +1170,25 @@ func_data_line_plot <-
                            )
                       ) %>% 
             distinct()
-        }
-      # data %>% 
-      # select_at(vars(-contains("_long")
-      #                )
-      #           ) %>% 
-      # distinct()
+          }
     
     data_grouped =
+      base %>%
+          group_by({{grp_var}})
+    
+    data_grouped_time =
       if(missing(time_var)
          ) {
-        base %>%
-          group_by({{grp_var}})
+        data_grouped
         } else {
           base %>%
             group_by({{grp_var}},
                      {{time_var}}
                      )
-      }
+          }
 
     data_cnts =
-      data_grouped %>%
+      data_grouped %>% 
       summarise(cnt = n(),
                 spend_min = min(spend, na.rm = TRUE),
                 spend_max = max(spend, nna.rm = TRUE),
@@ -1195,77 +1196,226 @@ func_data_line_plot <-
                 impressions_min = min(impressions, na.rm = TRUE),
                 impressions_max = max(impressions, nna.rm = TRUE),
                 impressions_med = median(impressions, na.rm = TRUE)
-                )
-
-    top_advertisers =
-      data_cnts %>%
-      filter(cnt >= cnt_cutoff) %>%
-      pull({{grp_var}})
+                ) %>% 
+      arrange(desc(cnt)
+              ) %>% 
+      mutate(cnt_rownum = row_number()
+             ) %>% 
+      arrange(desc(spend_med)
+              ) %>% 
+      mutate(spend_med_rownum = row_number()
+             )
     
-    data_cnts =
-      data_cnts %>% 
-      filter({{grp_var}} %in% top_advertisers)
+    data_cnts_time =
+      data_grouped_time %>% 
+      summarise(cnt = n(),
+                spend_min = min(spend, na.rm = TRUE),
+                spend_max = max(spend, nna.rm = TRUE),
+                spend_med = median(spend, na.rm = TRUE),
+                impressions_min = min(impressions, na.rm = TRUE),
+                impressions_max = max(impressions, nna.rm = TRUE),
+                impressions_med = median(impressions, na.rm = TRUE)
+                ) %>% 
+      left_join(y = data_cnts %>% 
+                  select({{grp_var}},
+                         cnt_rownum,
+                         spend_med_rownum
+                         )
+                ) %>% 
+      rename(cnt_rownum_entire_group = cnt_rownum,
+             spend_med_rownum_entire_group = spend_med_rownum
+             )
 
-    plot =
+    sum_stats =
       if(missing(time_var)
          ) {
-        (data_cnts %>% 
-           ggplot(aes(x = fct_reorder({{grp_var}},
-                                      cnt
-                                      ),
-                      y = cnt
-                      )
-           ) +
-           geom_col(na.rm = TRUE) +
-           coord_flip() +
-           theme_minimal() +
-           labs(x = paste0(quo_get_expr(quo({{grp_var}})
-                                        )
-                           )
-                ) +
-           NULL
-         ) %>%
-          ggplotly()
+        data_cnts
         } else {
-          (data_cnts %>% 
-             ggplot(aes(x = {{time_var}},
-                        y = cnt,
-                        color = {{grp_var}}
-                        )
-                    ) +
-             geom_line(na.rm = TRUE) +
-             theme_minimal() +
-             NULL
-           ) %>% 
-            ggplotly()
-        }
+          data_cnts_time
+          }
     
-    # return(data_cnts)
-    
-    return(list(data = data_cnts,
-                plot = plot
-                )
-           )
+    return(sum_stats)
     
     }
 
+```
 
-test <-
+
+
+```{r}
+
+sum_stats_state <-
   us_only_vars_abv_pt5_missing %>% 
-  func_data_line_plot(
-                      # grp_var = payingadvertisername,
-                      grp_var = state_nameincl,
-                      # grp_var = postal_codes__included__long,
-                      # zip_cnt = TRUE,
-                      time_var = start_yrmth,
-                      cnt_cutoff = 10
-                      )
+  filter(!is.na(state_nameincl)
+         ) %>% 
+  func_summary_stats(grp_var = state_nameincl,
+                     zip_cnt = FALSE,
+                     time_var = start_yrmth
+                     )
 
-# str(test)
-test
+sum_stats_state
+
+
+
+sum_stats_zip <-
+  us_only_vars_abv_pt5_missing %>% 
+  filter(!is.na(postal_codes__included__long)
+         ) %>% 
+  func_summary_stats(grp_var = postal_codes__included__long,
+                     zip_cnt = TRUE,
+                     time_var = start_yrmth
+                     )
+
+sum_stats_zip
+
+
+
+sum_stats_advertiser <-
+  us_only_vars_abv_pt5_missing %>% 
+  filter(!is.na(payingadvertisername)
+         ) %>% 
+  func_summary_stats(grp_var = payingadvertisername,
+                     zip_cnt = FALSE,
+                     time_var = start_yrmth
+                     )
+
+sum_stats_advertiser
 
 ```
 
+
+```{r}
+sum_stats_advertiser %>% filter(spend_med_rownum_entire_group <= 10) %>% View()
+```
+
+
+```{r}
+
+# glimpse(us_only_vars_abv_pt5_missing)
+
+func_plot <-
+  function(data, 
+           var_x,
+           var_y,
+           var_color,
+           rownum_var,
+           rownum_cutoff = 10
+           ) {
+    
+    
+    top_n_filter =
+      data %>%
+      filter({{rownum_var}} <= rownum_cutoff) %>%
+      pull({{var_color}})
+    
+    
+    plot =
+      (data %>% 
+         filter({{var_color}} %in% top_n_filter) %>% 
+         ggplot(aes(x = {{var_x}},
+                    y = {{var_y}},
+                    color = {{var_color}}
+                    )
+                ) +
+         geom_line(na.rm = TRUE) +
+         theme_minimal() +
+         labs(x = "",
+              y = ""
+              ) +
+         NULL
+       ) %>% 
+      ggplotly() %>% 
+      layout(title = list(text = paste0("Values Over Time For: ",
+                                        quo_get_expr(quo({{var_color}})
+                                                     ),
+                                        "<br>",
+                                        "<sup>",
+                                        "Top ",
+                                        quo_get_expr(quo({{rownum_cutoff}})
+                                                     ),
+                                        "</sup>"
+                                        ),
+                          x = 0.025,
+                          xanchor = "left"
+                          ),
+             xaxis = list(title = "Year-Month Ad Began"),
+             yaxis = list(title = paste0(quo_get_expr(quo({{var_y}})
+                                                      )
+                                         )
+                          )
+             )
+    
+    
+    return(plot)
+    }
+
+```
+
+
+```{r}
+
+plot_time_advertiser_cnt <-
+  sum_stats_advertiser %>% 
+  func_plot(var_x = start_yrmth,
+            var_y = cnt,
+            var_color = payingadvertisername,
+            rownum_var = cnt_rownum_entire_group,
+            rownum_cutoff = 10
+            )
+
+plot_time_advertiser_cnt
+
+
+plot_time_advertiser_spend <-
+  sum_stats_advertiser %>% 
+  func_plot(var_x = start_yrmth,
+            var_y = spend_med,
+            var_color = payingadvertisername,
+            rownum_var = spend_med_rownum_entire_group,
+            rownum_cutoff = 10
+            )
+
+plot_time_advertiser_spend
+
+```
+
+
+
+```{r}
+
+plot_time_state_cnt <-
+  sum_stats_state %>% 
+  func_plot(var_x = start_yrmth,
+            var_y = cnt,
+            var_color = state_nameincl,
+            rownum_var = cnt_rownum_entire_group,
+            rownum_cutoff = 10
+            )
+
+plot_time_state_cnt
+
+
+plot_time_state_spend <-
+  sum_stats_state %>% 
+  func_plot(var_x = start_yrmth,
+            var_y = spend_med,
+            var_color = state_nameincl,
+            rownum_var = spend_med_rownum_entire_group,
+            rownum_cutoff = 10
+            )
+
+plot_time_state_spend
+
+```
+
+
+
+```{r}
+
+rm(list = ls(pattern = "plot_time"))
+rm(list = ls(pattern = "sum_stats_"))
+
+```
 
 
 
@@ -1519,6 +1669,17 @@ tm_shape(zips_with_ads) +
 #           )
 
 ```
+
+
+
+
+
+
+
+
+
+
+
 
 
 ```{r}
