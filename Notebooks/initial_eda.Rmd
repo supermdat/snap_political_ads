@@ -469,11 +469,7 @@ rm(data_2018, data_2019, data_2020)
 tic()
 data_20182019_long <-
   data_20182019 %>% 
-  mutate(payingadvertisername = payingadvertisername %>% 
-           str_squish() %>% 
-           str_trim(side = "both") %>% 
-           tolower(),
-         interests_long = str_split(interests,
+  mutate(interests_long = str_split(interests,
                                     ",",
                                     ),
          language_long = str_split(language,
@@ -1139,7 +1135,7 @@ us_only_vars_abv_pt5_missing <-
   #        )
 
 str(us_only_vars_abv_pt5_missing)
-skim(us_only_vars_abv_pt5_missing)
+# skim(us_only_vars_abv_pt5_missing)
 
 # View(us_only_vars_abv_pt5_missing %>%
 #        head(1000)
@@ -1151,9 +1147,61 @@ rm(negative_ad_duration, us_only_no_duration_neg, vars_abv_pt5_missing)
 ```
 
 
+
 ```{r}
 
-# glimpse(us_only_vars_abv_pt5_missing)
+tic()
+cleanup_creativeproperties <-
+  us_only_vars_abv_pt5_missing %>% 
+  mutate(creativeproperties_clean1 = case_when((!is.na(creativeproperties) &
+                                                  str_detect(string = creativeproperties,
+                                                             pattern = "\\?",
+                                                             negate = FALSE
+                                                             )
+                                                ) ~ str_extract(string = creativeproperties,
+                                                                pattern = "(?<=https://).+(?=\\?)"
+                                                                ),
+                                               (!is.na(creativeproperties) &
+                                                  str_detect(string = creativeproperties,
+                                                             pattern = "\\?",
+                                                             negate = TRUE
+                                                             )
+                                                ) ~ str_extract(string = creativeproperties,
+                                                                pattern = "(?<=https://).+"
+                                                                )
+                                               ) %>% 
+           str_replace_all(pattern = "www\\.", replacement = ""),
+         creativeproperties_clean2 = if_else(str_detect(string = creativeproperties_clean1,
+                                                        pattern = "\\/",
+                                                        negate = FALSE
+                                                        ),
+                                             word(string = creativeproperties_clean1,
+                                                  start = 1,
+                                                  sep = "/"
+                                                  ),
+                                             creativeproperties_clean1
+                                             )
+         ) %>% 
+  mutate_if(is.character, factor) %>% 
+  mutate_if(is.factor, factor)
+toc()
+
+
+str(cleanup_creativeproperties)
+tic()
+skim(cleanup_creativeproperties)
+toc()
+
+
+rm(us_only_vars_abv_pt5_missing)
+
+```
+
+
+
+```{r}
+
+# glimpse(cleanup_creativeproperties)
 
 func_summary_stats <-
   function(data, 
@@ -1245,12 +1293,12 @@ func_summary_stats <-
 ```{r}
 
 sum_stats_state <-
-  us_only_vars_abv_pt5_missing %>% 
+  cleanup_creativeproperties %>% 
   filter(!is.na(state_nameincl)
          ) %>% 
   func_summary_stats(grp_var = state_nameincl,
                      zip_cnt = FALSE,
-                     time_var = start_yrmth
+                     time_var = start_yrmthwk
                      )
 
 sum_stats_state
@@ -1258,12 +1306,12 @@ sum_stats_state
 
 
 sum_stats_zip <-
-  us_only_vars_abv_pt5_missing %>% 
+  cleanup_creativeproperties %>% 
   filter(!is.na(postal_codes__included__long)
          ) %>% 
   func_summary_stats(grp_var = postal_codes__included__long,
                      zip_cnt = TRUE,
-                     time_var = start_yrmth
+                     time_var = start_yrmthwk
                      )
 
 sum_stats_zip
@@ -1271,27 +1319,36 @@ sum_stats_zip
 
 
 sum_stats_advertiser <-
-  us_only_vars_abv_pt5_missing %>% 
+  cleanup_creativeproperties %>% 
   filter(!is.na(payingadvertisername)
          ) %>% 
   func_summary_stats(grp_var = payingadvertisername,
                      zip_cnt = FALSE,
-                     time_var = start_yrmth
+                     time_var = start_yrmthwk
                      )
 
 sum_stats_advertiser
 
+
+
+sum_stats_creativeproperties_clean2 <-
+  cleanup_creativeproperties %>% 
+  filter(!is.na(creativeproperties_clean2)
+         ) %>% 
+  func_summary_stats(grp_var = creativeproperties_clean2,
+                     zip_cnt = FALSE,
+                     time_var = start_yrmthwk
+                     )
+
+sum_stats_creativeproperties_clean2
+
 ```
 
 
-```{r}
-sum_stats_advertiser %>% filter(spend_med_rownum_entire_group <= 10) %>% View()
-```
-
 
 ```{r}
 
-# glimpse(us_only_vars_abv_pt5_missing)
+# glimpse(cleanup_creativeproperties)
 
 func_plot <-
   function(data, 
@@ -1303,7 +1360,7 @@ func_plot <-
            ) {
     
     
-    top_n_filter =
+    top_advertisers =
       data %>%
       filter({{rownum_var}} <= rownum_cutoff) %>%
       pull({{var_color}})
@@ -1311,7 +1368,7 @@ func_plot <-
     
     plot =
       (data %>% 
-         filter({{var_color}} %in% top_n_filter) %>% 
+         filter({{var_color}} %in% top_advertisers) %>% 
          ggplot(aes(x = {{var_x}},
                     y = {{var_y}},
                     color = {{var_color}}
@@ -1356,11 +1413,11 @@ func_plot <-
 
 plot_time_advertiser_cnt <-
   sum_stats_advertiser %>% 
-  func_plot(var_x = start_yrmth,
+  func_plot(var_x = start_yrmthwk,
             var_y = cnt,
             var_color = payingadvertisername,
             rownum_var = cnt_rownum_entire_group,
-            rownum_cutoff = 10
+            rownum_cutoff = 20
             )
 
 plot_time_advertiser_cnt
@@ -1368,11 +1425,11 @@ plot_time_advertiser_cnt
 
 plot_time_advertiser_spend <-
   sum_stats_advertiser %>% 
-  func_plot(var_x = start_yrmth,
+  func_plot(var_x = start_yrmthwk,
             var_y = spend_med,
             var_color = payingadvertisername,
             rownum_var = spend_med_rownum_entire_group,
-            rownum_cutoff = 10
+            rownum_cutoff = 20
             )
 
 plot_time_advertiser_spend
@@ -1385,7 +1442,7 @@ plot_time_advertiser_spend
 
 plot_time_state_cnt <-
   sum_stats_state %>% 
-  func_plot(var_x = start_yrmth,
+  func_plot(var_x = start_yrmthwk,
             var_y = cnt,
             var_color = state_nameincl,
             rownum_var = cnt_rownum_entire_group,
@@ -1397,7 +1454,7 @@ plot_time_state_cnt
 
 plot_time_state_spend <-
   sum_stats_state %>% 
-  func_plot(var_x = start_yrmth,
+  func_plot(var_x = start_yrmthwk,
             var_y = spend_med,
             var_color = state_nameincl,
             rownum_var = spend_med_rownum_entire_group,
@@ -1409,6 +1466,33 @@ plot_time_state_spend
 ```
 
 
+```{r}
+
+plot_time_creativeproperties_clean2_cnt <-
+  sum_stats_creativeproperties_clean2 %>% 
+  func_plot(var_x = start_yrmthwk,
+            var_y = cnt,
+            var_color = creativeproperties_clean2,
+            rownum_var = cnt_rownum_entire_group,
+            rownum_cutoff = 20
+            )
+
+plot_time_creativeproperties_clean2_cnt
+
+
+plot_time_creativeproperties_clean2_spend <-
+  sum_stats_creativeproperties_clean2 %>% 
+  func_plot(var_x = start_yrmthwk,
+            var_y = spend_med,
+            var_color = creativeproperties_clean2,
+            rownum_var = spend_med_rownum_entire_group,
+            rownum_cutoff = 20
+            )
+
+plot_time_creativeproperties_clean2_spend
+
+```
+
 
 ```{r}
 
@@ -1417,12 +1501,23 @@ rm(list = ls(pattern = "sum_stats_"))
 
 ```
 
+```{r}
+
+# View(cleanup_creativeproperties %>% 
+#        select_at(vars(-contains("_long")
+#                            )
+#                       ) %>% 
+#             distinct()
+#      )
+
+```
+
 
 
 ```{r}
 
 many_impressions <-
-  us_only_vars_abv_pt5_missing %>% 
+  cleanup_creativeproperties %>% 
   arrange(desc(impressions_per_day)) %>% 
   select(-dplyr::contains("_long")
          ) %>% 
@@ -1445,12 +1540,12 @@ write_csv(x = many_impressions,
 
 ```{r}
 
-# View(us_only_vars_abv_pt5_missing %>% 
+# View(cleanup_creativeproperties %>% 
 #        arrange(spend) %>% 
 #        head(1000)
 #      )
 # 
-# us_only_vars_abv_pt5_missing %>% skim(spend)
+# cleanup_creativeproperties %>% skim(spend)
 
 ```
 
@@ -1564,7 +1659,7 @@ census_all_data_zcta_wide
 ```{r}
 
 ad_cnt_by_zip <-
-  us_only_vars_abv_pt5_missing %>% 
+  cleanup_creativeproperties %>% 
   filter(!is.na(postal_codes__included__long)
          ) %>% 
   count(postal_codes__included__long,
