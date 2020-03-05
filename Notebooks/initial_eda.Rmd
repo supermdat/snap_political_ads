@@ -47,6 +47,7 @@ list_of_packages <-
     # "glmnet",
     # "h2o",
     # "nnet",
+    "here",
     "skimr",
     "naniar",
     "tictoc",
@@ -117,6 +118,8 @@ library("sf")
 
 
 # other
+library("here")           # simpler file paths to not explicitly set the working directory
+library("httr")           # get data from API
 library("skimr")          # inspect data
 library("naniar")         # inspect missingness of data
 library("tictoc")         # easy runtime calcs
@@ -145,36 +148,11 @@ options(error = function() {skrrrahh("khaled2")})
 
 ```
   
-
-  Setup the root directory.
-```{r setup, include=FALSE}
-
-require("knitr")
-
-
-# # Use when running from AWS
-# # opts_knit$set(root.dir = "/home/rstudio/Dropbox/_AWS/snap_political_ads")
-
-
-
-if (str_detect(string = getwd(),
-               pattern = "mdturse"
-               )
-    ) {
-  # Use when running from laptop
-  opts_knit$set(root.dir = "/Users/mdturse/Desktop/Analytics/snap_political_ads")
-  } else {
-    # Use when running from Sparkfund laptop
-    opts_knit$set(root.dir = "/Users/danielturse/Desktop/Projects/snap_political_ads")
-  }
-
-```
-  
     
   Setting `wd` as the working directory.
 ```{r}
 
-wd <- getwd()
+wd <- here::here()
 
 wd
 
@@ -968,6 +946,99 @@ rm(start, end)
 
 ## Create data to crosswalk Zip to State Name
 
+First, get the unique zip codes to lookup.
+```{r}
+
+# unique_zips_inc <-
+#   join_unlisted_data %>% 
+#   filter(!is.na(postal_codes__included__long)
+#          ) %>% 
+#   select(postal_codes__included__long) %>% 
+#   mutate_all(as.character) %>% 
+#   distinct() %>% 
+#   pull(postal_codes__included__long)
+# 
+# unique_zips_exl <-
+#   join_unlisted_data %>% 
+#   filter(!is.na(postal_codes__excluded__long)
+#          ) %>% 
+#   select(postal_codes__excluded__long) %>% 
+#   mutate_all(as.character) %>% 
+#   distinct() %>% 
+#   pull(postal_codes__excluded__long)
+# 
+# zips_all <- c(unique_zips_inc, unique_zips_exl)
+# 
+# unique_zips <- unique(zips_all)
+# 
+# str(unique_zips)
+# 
+# 
+# rm(unique_zips_inc, unique_zips_exl)
+
+```
+
+
+Now, get the data from the HUD API.
+```{r}
+
+# url_base <- "https://www.huduser.gov/hudapi/public/usps"
+# 
+# 
+# get_call <-
+#   unique_zips %>% 
+#   map(~ GET(url = paste0(url_base,
+#                          "?type=1&query=",
+#                          .x
+#                          ),
+#             add_headers(Authorization = paste0("Bearer ",
+#                                                Sys.getenv("HUD_USPS_API_KEY")
+#                                                )
+#                         )
+#             )
+#       )
+# 
+# 
+# get_call %>% 
+#   map(~ http_status(.x)
+#       )
+# 
+# test
+# str(test)
+# 
+# 
+# api_content <-
+#   get_call %>% 
+#   map(~ jsonlite::fromJSON(txt = content(x = .x,
+#                                          as = "text"
+#                                          ),
+#                            simplifyVector = TRUE,
+#                            simplifyDataFrame = TRUE,
+#                            flatten = TRUE
+#                            )
+#       )
+# 
+# 
+# api_data <-
+#   pmap(.l = list(a = api_content),
+#        .f = function(a) {
+#          z = a$data$input
+#          
+#          result = a$data$results %>% 
+#            mutate(zip = z)
+#          
+#          return(result)
+#          }
+#        )
+# 
+# test_content$data$results %>% View()
+# 
+# test_content$data$results %>% 
+#   mutate(zip = test_content$data$input)
+
+```
+
+
 Obtain the Zip to Tract file
 ```{r}
 
@@ -981,6 +1052,7 @@ zip_to_tract_raw <-
              )
 
 glimpse(zip_to_tract_raw)
+# View(zip_to_tract_raw %>% filter(ZIP == "20016"))
 
 ```
 
