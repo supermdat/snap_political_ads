@@ -1846,9 +1846,6 @@ tm_shape(zips_with_ads) +
 
 
 
-
-
-
 ```{r}
 
 # us_only_vars_abv_pt5_missing %>% 
