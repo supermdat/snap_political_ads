@@ -1441,12 +1441,14 @@ func_plot <-
     plot =
       (data %>% 
          filter({{var_color}} %in% top_advertisers) %>% 
+         mutate_if(is.POSIXct, as_date) %>% 
          ggplot(aes(x = {{var_x}},
                     y = {{var_y}},
                     color = {{var_color}}
                     )
                 ) +
          geom_line(na.rm = TRUE) +
+         scale_x_date(date_labels = "%Y-%m-%d") +
          theme_minimal() +
          labs(x = "",
               y = ""
